@@ -88,7 +88,7 @@ def linha(conta: str, pedido: dict, envio: dict, sla: dict):
         i = it.get("item") or {}
         itens.append({"mlb": i.get("id"), "titulo": i.get("title"), "sku": i.get("seller_sku") or i.get("seller_custom_field"),
                       "qtd": it.get("quantity")})
-    return {"conta": conta, "canal": canal, "logistica": envio.get("logistic_type"), "pedido": pedido.get("id"), "envio": envio.get("id"),
+    return {"conta": conta, "canal": canal, "logistica": envio.get("logistic_type"), "pedido": pedido.get("id"), "pacote": pedido.get("pack_id"), "envio": envio.get("id"),
             "unidades": sum(i["qtd"] or 0 for i in itens), "status": envio.get("status"), "substatus": sub,
             "situacao": situacao(envio.get("status"), sub),
             "liberado": envio.get("status") == "ready_to_ship",   # pending/buffered = ainda não liberado

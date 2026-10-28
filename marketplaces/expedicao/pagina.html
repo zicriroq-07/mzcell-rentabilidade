@@ -16,6 +16,7 @@
   header h1 { margin:0; font-size:18px; }
   header .sub { color:#9ca3af; font-size:12px; }
   button { background:#fff; color:#111; border:0; border-radius:6px; padding:7px 14px; font:inherit; font-weight:600; cursor:pointer; }
+  button:disabled { opacity:.4; cursor:wait; }
   main { max-width:1100px; margin:0 auto; padding:16px; }
   .kpis { display:grid; grid-template-columns:repeat(auto-fit,minmax(230px,1fr)); gap:10px; margin-bottom:14px; }
   .kpi { background:var(--card); border:1px solid var(--bd); border-radius:8px; padding:10px 14px; }
@@ -46,6 +47,15 @@
   .foto.sem { display:flex; align-items:center; justify-content:center; font-size:10px; color:var(--mut); }
   .mt { font-weight:700; }
   .quebra { font-size:16px; font-weight:700; margin-top:4px; color:var(--ok); }
+  .btn-m { background:var(--card); color:var(--txt); border:1px solid var(--bd); padding:3px 10px; border-radius:6px; font:inherit; font-size:11px; font-weight:600; margin-right:4px; cursor:pointer; }
+  .btn-m.on { background:var(--okb); color:var(--ok); border-color:var(--ok); }
+  .marcas { margin-top:6px; }
+  .filtros { font-size:12px; color:var(--mut); margin:4px 0 10px; display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+  .filtros select { background:var(--card); color:var(--txt); border:1px solid var(--bd); border-radius:6px; padding:4px 8px; font:inherit; }
+  .prog { display:none; background:var(--card); border-bottom:1px solid var(--bd); padding:8px 16px; font-size:12px; }
+  .prog-l { margin:6px 0; }
+  .prog .bar { height:6px; background:var(--bd); border-radius:3px; overflow:hidden; margin-top:3px; }
+  .prog .bar i { display:block; height:100%; background:var(--ok); width:0; transition:width .5s; }
   @media (max-width:560px) { .linha { grid-template-columns:1fr; } }
 </style>
 </head>
@@ -54,6 +64,7 @@
   <div><h1>Expedição · Galpão</h1><div class="sub" id="sub">carregando…</div></div>
   <button id="atualizar" type="button">Atualizar agora</button>
 </header>
+<div id="prog" class="prog"></div>
 <main>
   <div class="kpis" id="kpis"></div>
   <div class="abas"><button id="aba-hoje" class="ativa" type="button">Hoje</button><button id="aba-proximos" type="button">Próximos dias</button></div>
@@ -63,16 +74,42 @@
   Amazon DBA (corte 11h, ponto até 14h) e Shopee (12h) entram nas próximas etapas. Verde: mais de 60 min. Amarelo: até 60 min. Vermelho: vencido.</p>
 </main>
 <script>
-  var dados = null, AMARELO_MIN = 60, aba = 'hoje', fotos = {};
+  var dados = null, AMARELO_MIN = 60, aba = 'hoje', fotos = {}, vista = 'geral';
   function dia(iso) { return iso ? new Date(iso).toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' }) : ''; }
   function hojeStr() { return new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' }); }
   function ehHoje(l) { var d = dia(l.meta || l.prazo_ml); return !d || d <= hojeStr(); }
+  // Montagem = pedidos com prazo hoje ainda não postados (em montagem agora).
+  // Prazo de dias anteriores: fica fora da contagem e vira alerta (atraso na montagem ou na postagem).
+  function emAberto(l) {
+    if (l.status === "ready_to_ship" && (l.substatus === "in_hub" || l.substatus === "in_packing_list")) return false;
+    return l.status === "pending" || l.status === "ready_to_ship";
+  }
+  function atrasoAnterior(l) { var d = dia(l.meta || l.prazo_ml); return !!d && d < hojeStr(); }
+  // Adiados (pending, aguardando liberação) não entram na montagem do dia; aparecem só na montagem de Próximos dias.
+  function aMontar(l) {
+    if (l.status === "pending") return aba === "proximos";
+    return l.status === "ready_to_ship" && emAberto(l) && !atrasoAnterior(l) && !marcadoEf(l, "embalado") && !marcadoEf(l, "checkout");
+  }
+  // Marcas do galpão (por envio): embalado e checkout ok. Guardadas no servidor até a integração com o Bling.
+  var marcasExp = {};
+  function marcado(l, campo) { return !!(marcasExp[l.envio] && marcasExp[l.envio][campo]); }
+  // Etiqueta já emitida (printed / ready_to_print): embalado e checkout ok são automáticos, sem marca do estoquista.
+  function etapaAuto(l) { return l.status === "ready_to_ship" && (l.substatus === "printed" || l.substatus === "ready_to_print"); }
+  function marcadoEf(l, campo) { return marcado(l, campo) || ((campo === "embalado" || campo === "checkout") && etapaAuto(l)); }
+  function marcarEnvio(envio, campo, valor) {
+    fetch("/expedicao/marca", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ envio: String(envio), campo: campo, valor: valor }) })
+      .then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+      .then(function (m) { marcasExp = m || {}; desenhar(); })
+      .catch(function (e) { el("sub").textContent = "erro ao marcar: " + e.message; });
+  }
   function el(i) { return document.getElementById(i); }
   function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]; }); }
   function hm(iso) { var d = new Date(iso); return d.toLocaleString("pt-BR", { day:"2-digit", month:"2-digit", hour:"2-digit", minute:"2-digit" }); }
   function falta(l) {
     // Já postado (in_hub) ou na lista de postagem: a parte do vendedor está feita, não conta como atraso
     if (l.status === "ready_to_ship" && (l.substatus === "in_hub" || l.substatus === "in_packing_list")) return { cls: "cz", txt: "postado · aguardando coleta", min: null };
+    if (marcado(l, "liberado")) return { cls: "cz", txt: "liberado pelo galpão", min: null };
+    if (marcadoEf(l, "embalado") && marcadoEf(l, "checkout")) return { cls: "cz", txt: "embalado e checkout ok · aguardando liberação", min: null };
     if (!l.meta) return { cls: "cz", txt: "sem prazo", min: null };
     var min = Math.round((new Date(l.meta) - new Date()) / 60000);
     if (min < 0) {
@@ -83,10 +120,14 @@
     return { cls: min <= AMARELO_MIN ? "am" : "ok", txt: "faltam " + dur(min), min: min };
   }
   function dur(m) { var h = Math.floor(m / 60), r = m % 60; return h ? h + "h" + (r < 10 ? "0" : "") + r : r + " min"; }
+  // Já postado (lista de postagem ou agência) não aparece: a tela mostra só o que ainda vai ser postado.
+  function naoPostado(l) { return !(l.status === "ready_to_ship" && (l.substatus === "in_hub" || l.substatus === "in_packing_list")) && !marcado(l, "liberado"); }
   function desenhar() {
     if (!dados) return;
+    var abertas = dados.linhas.filter(naoPostado).filter(passaFiltro);
+    var porEnvio = {}; abertas.forEach(function (l) { porEnvio[l.envio] = (porEnvio[l.envio] || 0) + 1; });
     var porCanal = {}, cont = { ok: 0, am: 0, vm: 0, cz: 0 }, contas = {}, logi = {};
-    dados.linhas.forEach(function (l) {
+    abertas.forEach(function (l) {
       l._f = falta(l);
       var lg = logi[l.canal] = logi[l.canal] || { p: 0, u: 0 }; lg.p++; lg.u += l.unidades || 0;
       var c = contas[l.conta] = contas[l.conta] || { total: 0, hoje: 0, prox: 0, vm: 0, aguardando: 0, canais: {} };
@@ -110,7 +151,13 @@
     Object.keys(contas).forEach(function (k) { var c = contas[k]; ['total','hoje','prox','vm','aguardando'].forEach(function (f) { tot[f] += c[f]; }); });
     var nomes = { meli01: 'Meli01 (coleta)', meli02: 'Meli02 (agência)', meli03: 'Meli03 (agência)' };
     var logHtml = Object.keys(logi).map(function (k) { return "<div class='n'><span>" + esc(k) + "</span><b>" + logi[k].p + " ped · " + logi[k].u + " un</b></div>"; }).join('');
-    el("kpis").innerHTML = "<div class='kpi'><h3>Logística (todas as contas)</h3>" + (logHtml || "<span class='meta'>sem envios</span>") + "</div>" +
+    // 1º: montagem de hoje por canal (pedidos e unidades). 2º: totais. 3º (abaixo): próximos dias.
+    var mHoje = abertas.filter(function (l) { return l.status === "ready_to_ship" && emAberto(l) && !atrasoAnterior(l) && ehHoje(l); });
+    var porCanalMont = {};
+    mHoje.forEach(function (l) { var x = porCanalMont[l.canal] = porCanalMont[l.canal] || { p: 0, u: 0 }; x.p++; x.u += l.unidades || 0; });
+    var montHtml = Object.keys(porCanalMont).sort().map(function (k) { return "<div class='n'><span>" + esc(k) + "</span><b>" + porCanalMont[k].p + " ped · " + porCanalMont[k].u + " un</b></div>"; }).join("");
+    el("kpis").innerHTML = "<div class='kpi'><h3>Montagem de hoje (por canal)</h3>" + (montHtml || "<span class='meta'>nenhum pedido para montar hoje</span>") + "</div>" +
+      "<div class='kpi'><h3>Logística (todas as contas)</h3>" + (logHtml || "<span class='meta'>sem envios</span>") + "</div>" +
       card('Total', Object.assign(tot, { canais: {} })) + ['meli01','meli02','meli03'].map(function (k) { return card(nomes[k], contas[k] || { total: 0, hoje: 0, prox: 0, vm: 0, aguardando: 0, canais: {} }); }).join('');
     el("erros").innerHTML = Object.keys(dados.erros || {}).map(function (c) { return "<div class='erro'>❌ " + esc(c) + ": " + esc(dados.erros[c]) + " (conta não carregada)</div>"; }).join("");
     var html = "";
@@ -123,17 +170,35 @@
         html += "<div class='linha " + f.cls + "'><div><div class='tempo'>" + esc(f.txt) + "</div>" +
           "<div class='meta'>meta " + (l.meta ? hm(l.meta) : "-") + "</div>" + (l.prazo_ml ? "<div class='meta'>ML até " + hm(l.prazo_ml) + "</div>" : "") +
           (f.extra ? "<div class='meta'>" + esc(f.extra) + "</div>" : "") + "</div>" +
-          "<div><span class='tag " + (l.liberado ? "ok" : "") + "'>" + (l.liberado ? "liberado" : "aguardando liberação") + "</span>" +
-          "<span class='tag'>" + esc(l.situacao || l.status) + "</span><span class='meta'>pedido " + esc(l.pedido) + "</span>" + its + "</div></div>";
+          "<div><span class='tag'>aguardando liberação pelo galpão</span>" +
+          (porEnvio[l.envio] > 1 ? "<span class='tag am'>mesmo envio de " + porEnvio[l.envio] + " pedidos</span>" : "") +
+          "<div class='marcas'><button class='btn-m" + (marcadoEf(l, 'embalado') ? " on" : "") + "' onclick=\"marcarEnvio('" + l.envio + "','embalado'," + !marcado(l, 'embalado') + ")\" title=\"" + (etapaAuto(l) && !marcado(l, 'embalado') ? "automático: etiqueta emitida" : "") + "\">Embalado</button>" +
+          "<button class='btn-m" + (marcadoEf(l, 'checkout') ? " on" : "") + "' onclick=\"marcarEnvio('" + l.envio + "','checkout'," + !marcado(l, 'checkout') + ")\" title=\"" + (etapaAuto(l) && !marcado(l, 'checkout') ? "automático: etiqueta emitida" : "") + "\">Checkout ok</button>" +
+          "<button class='btn-m' onclick=\"marcarEnvio('" + l.envio + "','liberado',true)\" title=\"Libera o pedido: sai da tela\">Liberar pedido</button></div>" +
+          "<span class='tag'>" + esc(l.situacao || l.status) + "</span><span class='meta'>" + numVenda(l) + "</span>" + its + "</div></div>";
       });
     });
-    var doAba = dados.linhas.filter(function (l) { return ehHoje(l) === (aba === 'hoje'); });
-    el("lista").innerHTML = montagemHtml(doAba) + (html || "<p class='meta'>" + (aba === "hoje" ? "Nenhum envio para hoje." : "Nenhum envio para os próximos dias.") + "</p>");
-    el("sub").textContent = "dados de " + hm(dados.gerado_em) + " · contagem atualiza a cada 30 s";
+    var doAba = abertas.filter(function (l) { return ehHoje(l) === (aba === 'hoje'); });
+    var abasVista = "<div class='abas'><button class='" + (vista === 'geral' ? 'ativa' : '') + "' onclick=\"trocaVista('geral')\">Geral</button>" +
+      "<button class='" + (vista === 'contas' ? 'ativa' : '') + "' onclick=\"trocaVista('contas')\">Por conta</button>" +
+      "<button class='" + (vista === 'pedidos' ? 'ativa' : '') + "' onclick=\"trocaVista('pedidos')\">Por pedido</button></div>" +
+      "<div class='filtros'>Conta <select onchange=\"setFiltro('conta', this.value)\">" +
+        [['todas', 'Todas']].concat(CONTAS_EXP.map(function (c) { return [c, c]; })).map(function (o) { return "<option value='" + o[0] + "'" + (filtroConta === o[0] ? " selected" : "") + ">" + o[1] + "</option>"; }).join("") +
+      "</select> Modalidade <select onchange=\"setFiltro('mod', this.value)\">" +
+        [['todas', 'Todas'], ['flex', 'Flex'], ['places', 'Places (Coleta e Agência)']].map(function (o) { return "<option value='" + o[0] + "'" + (filtroMod === o[0] ? " selected" : "") + ">" + o[1] + "</option>"; }).join("") +
+      "</select> <button class='btn-m' onclick='imprimirMontagem()'>Imprimir montagem</button></div>";
+    var paraMontar = doAba.filter(aMontar);
+    var atrasados = abertas.filter(function (l) { return emAberto(l) && atrasoAnterior(l); });
+    var alertaAtraso = atrasados.length ? "<div class='erro'>⚠ " + plural(atrasados.length, 'pedido', 'pedidos') + " com prazo de dia anterior, fora da montagem: verificar atraso na montagem ou na postagem.</div>" : "";
+    var listaPedidos = html || "<p class='meta'>" + (aba === "hoje" ? "Nenhum envio para hoje." : "Nenhum envio para os próximos dias.") + "</p>";
+    var conteudo = vista === 'pedidos' ? listaPedidos
+      : alertaAtraso + (vista === 'geral' ? montagemHtml(paraMontar) : montagemContasHtml(paraMontar));
+    el("lista").innerHTML = abasVista + conteudo;
+    if (dados.gerado_em) el("sub").textContent = "dados de " + hm(dados.gerado_em) + " · contagem atualiza a cada 30 s";
   }
   // Montagem para os embaladores: um produto por bloco, com a quebra de pacotes (1 pedido = 1 pacote)
   function plural(n, s, p) { return n + ' ' + (n === 1 ? s : p); }
-  function montagemHtml(ls) {
+  function montagemHtml(ls, titulo) {
     var g = {}, mistos = [];
     ls.forEach(function (l) {
       if (l.itens.length !== 1) { mistos.push(l); return; }
@@ -142,7 +207,7 @@
       x.un += i.qtd || 0; x.ped++; x.pac[i.qtd] = (x.pac[i.qtd] || 0) + 1;
     });
     var lista = Object.keys(g).map(function (k) { return g[k]; }).sort(function (a, b) { return b.un - a.un; });
-    var h = "<h2>Montagem <small>· " + lista.length + " produto(s), " + plural(ls.length, 'pedido', 'pedidos') + "</small></h2>";
+    var h = "<h2>" + esc(titulo || "Montagem") + " <small>· " + lista.length + " produto(s), " + plural(ls.length, 'pedido', 'pedidos') + "</small></h2>";
     lista.forEach(function (x) {
       var quebra = Object.keys(x.pac).map(Number).sort(function (a, b) { return a - b; })
         .map(function (q) { return plural(x.pac[q], 'pacote', 'pacotes') + " de " + plural(q, 'un', 'un'); }).join(' · ');
@@ -155,12 +220,81 @@
     if (mistos.length) {
       h += "<h2>Pedidos com mais de um produto <small>· " + mistos.length + "</small></h2>";
       mistos.forEach(function (l) {
-        h += "<div class='linha cz'><div><b>pedido " + esc(l.pedido) + "</b><div class='meta'>" + esc(l.canal) + " · " + esc(l.conta) + "</div></div><div>" +
+        h += "<div class='linha cz'><div><b>" + numVenda(l) + "</b><div class='meta'>" + esc(l.canal) + " · " + esc(l.conta) + "</div></div><div>" +
           l.itens.map(function (i) { return "<div class='it'><b>" + esc(i.qtd) + "×</b> " + esc((i.titulo || '').slice(0, 70)) + (i.sku ? " <span class='meta'>" + esc(i.sku) + "</span>" : "") + "</div>"; }).join('') +
           "</div></div>";
       });
     }
     return h;
+  }
+  // Visão por conta e modalidade: Flex, e Places (Coleta + Agência, os demais canais do ML)
+  function montagemContasHtml(ls) {
+    var h = "";
+    ["meli01", "meli02", "meli03"].forEach(function (c) {
+      var lc = ls.filter(function (l) { return l.conta === c; });
+      if (!lc.length) return;
+      var flex = lc.filter(function (l) { return l.canal === "Flex"; });
+      var places = lc.filter(function (l) { return l.canal !== "Flex"; });
+      var canais = places.map(function (l) { return l.canal; }).filter(function (v, i, a) { return a.indexOf(v) === i; }).sort().join(" e ");
+      h += "<h2>" + esc(c) + " <small>· " + plural(lc.length, 'pedido', 'pedidos') + "</small></h2>";
+      if (flex.length) h += montagemHtml(flex, "Flex");
+      if (places.length) h += montagemHtml(places, "Places" + (canais ? " (" + canais + ")" : ""));
+    });
+    return h || "<p class='meta'>Nenhum envio para esta visão.</p>";
+  }
+  function trocaVista(v) { vista = v; desenhar(); }
+  // Impressão da montagem do dia: Flex primeiro (primeira embalagem), depois Places por horário. Sai o que já está embalado.
+  function imprimirMontagem() {
+    var base = dados.linhas.filter(naoPostado).filter(passaFiltro).filter(function (l) {
+      return l.status === "ready_to_ship" && emAberto(l) && !atrasoAnterior(l) && ehHoje(l) && !marcadoEf(l, "embalado") && !marcadoEf(l, "checkout");
+    });
+    var grupos = {};
+    base.forEach(function (l) {
+      var hora = (l.meta || "").slice(11, 16);
+      var k = (l.canal === "Flex" ? "0" : "1") + "|" + l.canal + "|" + hora + "|" + l.conta;
+      var g = grupos[k] = grupos[k] || { canal: l.canal, conta: l.conta, hora: hora, linhas: [] };
+      g.linhas.push(l);
+    });
+    var corpo = Object.keys(grupos).sort().map(function (k) {
+      var g = grupos[k], prod = {}, total = 0;
+      g.linhas.forEach(function (l) {
+        total += l.unidades || 0;
+        (l.itens || []).forEach(function (i) {
+          var chave = i.mlb || i.titulo;
+          var p = prod[chave] = prod[chave] || { titulo: i.titulo, sku: i.sku, un: 0 };
+          p.un += i.qtd || 0;
+        });
+      });
+      var lista = Object.keys(prod).map(function (c) { return prod[c]; }).sort(function (a, b) { return b.un - a.un; });
+      var titulo = (g.canal === "Flex" ? "Flex" : "Places · " + g.canal) + " · " + g.conta + (g.hora ? " · horário " + g.hora : "");
+      return "<h2>" + esc(titulo) + "</h2><p>" + plural(g.linhas.length, "pedido", "pedidos") + " · " + plural(total, "unidade", "unidades") + "</p>" +
+        "<table><tr><th>Produto</th><th>SKU</th><th>Qtd</th></tr>" +
+        lista.map(function (p) { return "<tr><td>" + esc((p.titulo || "").slice(0, 70)) + "</td><td>" + esc(p.sku || "") + "</td><td class='q'>" + p.un + "</td></tr>"; }).join("") +
+        "</table>";
+    }).join("");
+    var w = window.open("", "_blank");
+    if (!w) { el("sub").textContent = "o navegador bloqueou a janela de impressão"; return; }
+    w.document.write("<!doctype html><html><head><meta charset='utf-8'><title>Montagem do dia</title><style>" +
+      "@page{size:A4 portrait;margin:10mm}" +
+      "body{font:12px Arial,sans-serif;margin:0;color:#000}h1{font-size:14px;margin:0 0 4px}h2{font-size:12px;margin:12px 0 2px;border-bottom:2px solid #000}" +
+      "p{margin:2px 0}table{width:100%;border-collapse:collapse;margin-top:3px;font-size:10px;table-layout:fixed}th,td{border-bottom:1px solid #999;padding:2px 4px;text-align:left;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}" +
+      "th:nth-child(1){width:auto}th:nth-child(2){width:130px}th:nth-child(3),td.q{width:34px}td.q{font-size:12px;font-weight:700;text-align:right}" +
+      "</style></head><body><h1>Montagem do dia · " + esc(hojeStr()) + "</h1>" + (corpo || "<p>Nenhum pedido para montar.</p>") + "</body></html>");
+    w.document.close(); w.focus(); w.print();
+  }
+  // Filtro da tela (vale para todas as abas): conta e modalidade
+  var filtroConta = "todas", filtroMod = "todas";
+  function setFiltro(qual, valor) { if (qual === "conta") filtroConta = valor; else filtroMod = valor; desenhar(); }
+  function passaFiltro(l) {
+    if (filtroConta !== "todas" && l.conta !== filtroConta) return false;
+    if (filtroMod === "flex") return l.canal === "Flex";
+    if (filtroMod === "places") return l.canal !== "Flex";
+    return true;
+  }
+  // Número que o ML mostra na tela de venda: o pacote quando existe; o pedido aparece ao lado.
+  function numVenda(l) {
+    if (l.pacote && String(l.pacote) !== String(l.pedido)) return "pacote " + esc(l.pacote) + " <span class='meta'>· pedido " + esc(l.pedido) + "</span>";
+    return "pedido " + esc(l.pedido);
   }
   function carregarFotos() {
     var contasLista = dados.linhas.map(function (l) { return l.conta; }).filter(function (c, i, a) { return a.indexOf(c) === i; });
@@ -168,12 +302,54 @@
       return fetch("/fotos/" + c).then(function (r) { return r.json(); }).then(function (d) { Object.assign(fotos, d.fotos || {}); }).catch(function () {});
     })).then(desenhar);
   }
+  // Carrega cada conta em paralelo e mostra cada uma assim que chega (o ML demora por pedido).
+  var CONTAS_EXP = ["meli01", "meli02", "meli03"];
+  // Painel de progresso: status por conta, tempo decorrido e restante estimado (média da última consulta, guardada no navegador)
+  var prog = {}, progTimer = null;
+  function estimativa(c) { try { var v = localStorage.getItem("exp_dur_" + c); return v ? Number(v) : null; } catch (e) { return null; } }
+  function progIniciar() {
+    prog = {};
+    CONTAS_EXP.forEach(function (c) { prog[c] = { st: "carregando", ini: Date.now(), fim: null, erro: null }; });
+    el("prog").style.display = "block"; progRender();
+    clearInterval(progTimer); progTimer = setInterval(progRender, 1000);
+  }
+  function progFim(c, erro) {
+    var p = prog[c]; p.fim = Date.now(); p.st = erro ? "erro" : "pronto"; p.erro = erro;
+    if (!erro) { try { localStorage.setItem("exp_dur_" + c, String(p.fim - p.ini)); } catch (e) {} }
+  }
+  function progRender() {
+    var box = el("prog"), agora = Date.now(), prontas = 0;
+    var linhas = CONTAS_EXP.map(function (c) {
+      var p = prog[c], dec = Math.round(((p.fim || agora) - p.ini) / 1000), est = estimativa(c), pct, txt;
+      if (p.st === "pronto") { prontas++; pct = 100; txt = "pronto em " + dec + " s"; }
+      else if (p.st === "erro") { prontas++; pct = 100; txt = "erro: " + esc(p.erro); }
+      else {
+        pct = est ? Math.min(95, Math.round(dec * 1000 / est * 100)) : 10;
+        txt = "carregando há " + dec + " s · " + (est ? "falta ~" + Math.max(0, Math.round(est / 1000) - dec) + " s (última consulta: " + Math.round(est / 1000) + " s)" : "primeira consulta, sem estimativa");
+      }
+      return "<div class='prog-l'><b>" + esc(c) + "</b> <span class='meta'>" + txt + "</span><div class='bar'><i style='width:" + pct + "%'></i></div></div>";
+    }).join("");
+    box.innerHTML = "<div class='meta'>Carregando dados do ML: " + prontas + " de " + CONTAS_EXP.length + " contas prontas</div>" + linhas;
+  }
+  function progParar() { clearInterval(progTimer); progRender(); setTimeout(function () { el("prog").style.display = "none"; }, 4000); }
   function carregar(forcar) {
     el("sub").textContent = "carregando…"; el("atualizar").disabled = true;
-    fetch("/expedicao/galpao" + (forcar ? "?atualizar=true" : "")).then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
-      .then(function (d) { dados = d; desenhar(); carregarFotos(); })
-      .catch(function (e) { el("sub").textContent = "erro ao carregar: " + e.message; })
-      .then(function () { el("atualizar").disabled = false; });
+    var acc = { gerado_em: null, linhas: [], erros: {} }, faltam = CONTAS_EXP.length;
+    dados = acc; progIniciar();
+    fetch("/expedicao/marcas").then(function (r) { return r.ok ? r.json() : {}; }).then(function (m) { marcasExp = m || {}; desenhar(); }).catch(function () {});
+    CONTAS_EXP.forEach(function (c) {
+      var erro = null;
+      fetch("/expedicao/galpao?contas=" + c + (forcar ? "&atualizar=true" : "")).then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+        .then(function (d) { acc.linhas = acc.linhas.concat(d.linhas || []); Object.assign(acc.erros, d.erros || {}); acc.gerado_em = d.gerado_em || acc.gerado_em; })
+        .catch(function (e) { erro = e.message; acc.erros[c] = e.message; })
+        .then(function () {
+          progFim(c, erro);
+          faltam--;
+          desenhar();
+          if (faltam === 0) { el("atualizar").disabled = false; carregarFotos(); progParar(); }
+          else el("sub").textContent = "carregando (" + (CONTAS_EXP.length - faltam) + " de " + CONTAS_EXP.length + " contas)…";
+        });
+    });
   }
   el("atualizar").addEventListener("click", function () { carregar(true); });
   function irAba(a) { aba = a; el("aba-hoje").className = a === "hoje" ? "ativa" : ""; el("aba-proximos").className = a === "proximos" ? "ativa" : ""; desenhar(); }
