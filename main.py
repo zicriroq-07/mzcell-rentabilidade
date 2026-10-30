@@ -6,6 +6,7 @@ MZ App
 import json
 import os
 import asyncio
+import threading
 from datetime import datetime
 from typing import Optional
 
@@ -1107,22 +1108,26 @@ def _aplicar_comentarios(registros: list):
     _save_anotacoes(db)
 
 
+_POSICOES_TRAVA = threading.Lock()  # leitura, sincronização e gravação de posicoes.json não podem se atropelar
+
+
 def _aplicar_posicoes(registros: list):
-    db = _load_posicoes()
-    for r in registros:
-        try:
-            conta, mlb = r["chave"].split("|", 1)
-            novo = json.loads(r["dados"])
-        except (ValueError, KeyError):
-            continue
-        if r.get("removido"):
-            db.get(conta, {}).pop(mlb, None)
-            continue
-        atual = db.setdefault(conta, {}).get(mlb)
-        if atual is None or (atual.get("atualizado_em") or "") <= (novo.get("atualizado_em") or r.get("atualizado_em", "")):
-            db[conta][mlb] = novo
-    with open(POSICOES_PATH, "w", encoding="utf-8") as f:
-        json.dump(db, f, indent=2, ensure_ascii=False)
+    with _POSICOES_TRAVA:
+        db = _load_posicoes()
+        for r in registros:
+            try:
+                conta, mlb = r["chave"].split("|", 1)
+                novo = json.loads(r["dados"])
+            except (ValueError, KeyError):
+                continue
+            if r.get("removido"):
+                db.get(conta, {}).pop(mlb, None)
+                continue
+            atual = db.setdefault(conta, {}).get(mlb)
+            if atual is None or (atual.get("atualizado_em") or "") <= (novo.get("atualizado_em") or r.get("atualizado_em", "")):
+                db[conta][mlb] = novo
+        with open(POSICOES_PATH, "w", encoding="utf-8") as f:
+            json.dump(db, f, indent=2, ensure_ascii=False)
 
 
 def _aplicar_clips(registros: list):
@@ -1241,17 +1246,18 @@ async def salvar_posicao_anuncio(conta: str, mlb: str, payload: dict):
         raise HTTPException(status_code=400, detail="pagina e posicao devem ser números")
     if not (1 <= pagina <= 99 and 1 <= posicao <= 99):
         raise HTTPException(status_code=400, detail="pagina e posicao devem estar entre 1 e 99")
-    db = _load_posicoes()
-    atual = db.setdefault(conta, {}).get(mlb, {})
-    hist = atual.get("historico", [])
-    hist.append({"data": _dt.now().strftime("%d/%m/%Y"), "pagina": pagina, "posicao": posicao,
-                 "keyword": str(payload.get("keyword", "")).strip()[:80]})
-    novo = {"pagina": pagina, "posicao": posicao, "keyword": str(payload.get("keyword", "")).strip()[:80],
-            "historico": hist[-20:]}
-    novo["atualizado_em"] = shared_store.agora_iso()
-    db[conta][mlb] = novo
-    with open(POSICOES_PATH, "w", encoding="utf-8") as f:
-        json.dump(db, f, indent=2, ensure_ascii=False)
+    with _POSICOES_TRAVA:
+        db = _load_posicoes()
+        atual = db.setdefault(conta, {}).get(mlb, {})
+        hist = atual.get("historico", [])
+        hist.append({"data": _dt.now().strftime("%d/%m/%Y"), "pagina": pagina, "posicao": posicao,
+                     "keyword": str(payload.get("keyword", "")).strip()[:80]})
+        novo = {"pagina": pagina, "posicao": posicao, "keyword": str(payload.get("keyword", "")).strip()[:80],
+                "historico": hist[-20:]}
+        novo["atualizado_em"] = shared_store.agora_iso()
+        db.setdefault(conta, {})[mlb] = novo
+        with open(POSICOES_PATH, "w", encoding="utf-8") as f:
+            json.dump(db, f, indent=2, ensure_ascii=False)
     shared_store.enviar_async("posicoes", f"{conta}|{mlb}", novo, str(payload.get("autor", ""))[:40])
     return {"success": True, "posicao": novo}
 

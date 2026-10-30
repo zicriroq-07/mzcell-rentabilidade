@@ -146,10 +146,14 @@ def enviar_async(*args, **kwargs):
 
 # ─── leitura ──────────────────────────────────────────────────────────────────
 
+COLECOES_COMPLETAS = ("posicoes",)  # poucos registros; sempre lidas inteiras (o marcador perdia registros com data antiga)
+
+
 def puxar(colecao: str) -> list:
     """Registros alterados desde a última leitura (atualiza o marcador só depois de ler com sucesso)."""
     estado = _ler(ESTADO_PATH, {})
-    r = _post({"acao": "listar", "colecao": colecao, "desde": estado.get(colecao, "")})
+    desde = "" if colecao in COLECOES_COMPLETAS else estado.get(colecao, "")
+    r = _post({"acao": "listar", "colecao": colecao, "desde": desde})
     registros = r.get("registros", [])
     if registros:
         estado[colecao] = max(x["atualizado_em"] for x in registros)
