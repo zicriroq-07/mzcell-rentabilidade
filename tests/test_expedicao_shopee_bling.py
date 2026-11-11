@@ -90,6 +90,40 @@ class Linhas(unittest.TestCase):
         self.assertEqual(ls, [])
         self.assertIn("401", erros["shopee"])
 
+    def test_numero_da_shopee_com_dia_seguinte_vai_para_o_corte_de_amanha(self):
+        # 11/11 no Bling e 12/11 na Shopee (UTC+8): criado depois das 13h de Brasília
+        depois = dict(ped(1, 6, data="2026-11-06"), numeroLoja="2611073KYB4K72")
+        antes = dict(ped(2, 6, data="2026-11-06"), numeroLoja="2611061WA36D7Y")
+        self.pedidos = {p["numeroLoja"]: p for p in (depois, antes)}
+        ls, _ = s.linhas(datetime(2026, 11, 6, 15, 0, tzinfo=BRT))
+        self.assertEqual([(l["pedido"], l["meta"]) for l in ls], [("2611073KYB4K72", "2026-11-07T12:00:00-03:00"),
+                                                                ("2611061WA36D7Y", "2026-11-06T12:00:00-03:00")])
+
+    def test_hora_em_que_apareceu_no_bling_conta_so_com_o_servidor_de_olho(self):
+        dia = datetime(2026, 11, 6, tzinfo=BRT)
+        self.pedidos = {"S1": ped(1, 6, data="2026-11-06")}
+        s.linhas(dia + timedelta(hours=11, minutes=50))                       # recém-ligado: hora desconhecida
+        self.pedidos["S2"] = ped(2, 6, data="2026-11-06")
+        self.pedidos["S4"] = ped(4, 6, data="2026-11-06")
+        s.linhas(dia + timedelta(hours=12, minutes=5))                        # S2 e S4: dentro da folga do corte
+        s.linhas(dia + timedelta(hours=13, minutes=30))
+        self.pedidos["S3"] = ped(3, 6, data="2026-11-06")
+        ls, _ = s.linhas(dia + timedelta(hours=13, minutes=40))               # S3 (Xpress, corte 12h no teste): depois
+        self.assertEqual({l["pedido"]: l["meta"][:10] for l in ls},
+                         {"S1": "2026-11-06", "S2": "2026-11-06", "S4": "2026-11-06", "S3": "2026-11-07"})
+
+    def test_reinicio_depois_de_muito_tempo_nao_empurra_para_amanha(self):
+        self.pedidos = {"S1": ped(1, 6, data="2026-11-06")}
+        s.linhas(datetime(2026, 11, 6, 8, 0, tzinfo=BRT))
+        self.pedidos["S2"] = ped(2, 6, data="2026-11-06")
+        ls, _ = s.linhas(datetime(2026, 11, 6, 16, 0, tzinfo=BRT))           # 8 horas sem ler
+        self.assertEqual([l["meta"][:10] for l in ls], ["2026-11-06", "2026-11-06"])
+
+    def test_sabado_depois_do_corte_vai_para_segunda(self):
+        with mock.patch.object(s.cortes, "carregar", lambda: [{"plataforma": "Shopee", "canal": "Shopee Xpress", "corte": "13:00"}]):
+            self.assertEqual(s._meta("Shopee Xpress", datetime(2026, 11, 7).date(), "Shopee",
+                                     datetime(2026, 11, 7, 14, 0, tzinfo=BRT)), "2026-11-09T13:00:00-03:00")
+
     def test_magalu_entra_com_modalidade_unica_e_corte_proprio(self):
         with mock.patch.object(s.cortes, "carregar", lambda: [{"plataforma": "Magalu", "canal": "Magalu", "corte": "10:30"}]):
             ls, erros = self.carregar(ped(7, 6, loja=12), ped(8, 24, data="2026-11-06", loja=12))
