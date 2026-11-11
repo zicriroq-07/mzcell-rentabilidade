@@ -8,9 +8,22 @@ Respondem na hora com o último resultado (`carregando: true` só na primeira le
 
 from fastapi import APIRouter, HTTPException
 
-from marketplaces.sac import devolucoes
+from marketplaces.sac import devolucoes, validador
 
 router = APIRouter(prefix="/sac", tags=["sac"])
+
+
+@router.get("/validador")
+def validar(operacao: str = None, venda: str = None, conta: str = None):
+    """Validador de operação: pela operação do Mercado Pago ou pela venda (entradas, saídas e saldo). Só leitura."""
+    try:
+        if operacao:
+            return validador.operacao(operacao, conta or None)
+        if venda:
+            return validador.venda(venda, conta or None)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    raise HTTPException(status_code=400, detail="informe a operação ou a venda")
 
 
 def _dias(d: int) -> int:

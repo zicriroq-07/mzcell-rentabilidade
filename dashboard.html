@@ -873,6 +873,7 @@ html[data-tema="claro"] .btn-anotacao:hover{background:var(--brand);color:#fff;}
           <button onclick="sacTipo('reclamacoes',this)">Reclamações</button>
           <button onclick="sacTipo('contestacoes',this)">Contestações</button>
           <button onclick="sacTipo('devolucoes',this)">Devoluções</button>
+          <button onclick="sacTipo('validador',this)">Validador de operação</button>
         </div>
         <div id="sac-corpo"></div>
       </div>
@@ -2144,6 +2145,47 @@ function sacTipo(t, btn){
   btn.classList.add('active');
   sacIr(_sacAba);
 }
+// Validador de operação: confere no Mercado Pago (só leitura) o ressarcimento informado na contestação
+function sacValidadorTela(){
+  document.getElementById('sac-status').textContent='consulta direta no Mercado Pago (somente leitura)';
+  const conta=_sacAba==='geral'?'':_sacAba;
+  document.getElementById('sac-corpo').innerHTML=`<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:6px 0 14px">
+    <select id="sac-val-tipo" class="modal-date" style="height:32px"><option value="operacao">Nº da operação (Mercado Pago)</option><option value="venda">Nº da venda (pedido ou pacote)</option></select>
+    <input id="sac-val-num" class="modal-date" style="height:32px;width:220px" placeholder="só números" onkeydown="if(event.key==='Enter')sacValidar()"/>
+    <button class="btn-sync-produto" onclick="sacValidar()" style="height:32px;padding:0 14px">Validar</button>
+    <span class="sac-mut">${conta?'só '+sacEsc(conta):'procura nas 3 contas'}</span></div><div id="sac-val-res"></div>`;
+  document.getElementById('sac-val-num').focus();
+}
+function sacReais(v){ return (v==null?'-':'R$ '+Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})); }
+function sacDataHora(iso){ if(!iso) return '-'; return new Date(iso).toLocaleString('pt-BR',{timeZone:'America/Sao_Paulo',day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}); }
+async function sacValidar(){
+  const tipo=document.getElementById('sac-val-tipo').value, num=document.getElementById('sac-val-num').value.replace(/\D/g,''), res=document.getElementById('sac-val-res');
+  if(!num){ res.innerHTML='<div class="sac-mut">Informe o número.</div>'; return; }
+  const conta=_sacAba==='geral'?'':_sacAba;
+  res.innerHTML='<div class="sac-mut">Consultando o Mercado Pago…</div>';
+  try{
+    const r=await fetch(`/sac/validador?${tipo}=${num}${conta?'&conta='+conta:''}`); const d=await r.json(); if(!r.ok) throw new Error(d.detail||r.status);
+    if(!d.encontrado){ res.innerHTML=`<div class="sac-mut">❌ ${sacEsc(d.motivo||'não encontrado')}</div>`; return; }
+    const lin=(a,b)=>`<tr><td style="padding:4px 10px;color:var(--muted2)">${a}</td><td style="padding:4px 10px">${b}</td></tr>`;
+    if(tipo==='operacao'){
+      res.innerHTML=(d.aviso?`<div class="erro" style="margin-bottom:8px">⚠ ${sacEsc(d.aviso)}</div>`:'')+`<table>`+
+        lin('Conta',sacEsc(d.conta))+lin('Operação',sacEsc(d.operacao))+lin('Tipo',sacEsc(d.tipo))+lin('Data e hora',sacDataHora(d.data))+
+        lin('Descrição',sacEsc(d.descricao))+lin('Valor',sacReais(d.valor))+lin('Situação',sacEsc(d.status)+' · '+sacEsc(d.status_detalhe))+
+        (d.venda?lin('Venda',`${sacEsc(d.venda)} <a href="#" onclick="document.getElementById('sac-val-tipo').value='venda';document.getElementById('sac-val-num').value='${sacEsc(d.venda)}';sacValidar();return false">ver entradas e saídas</a>`):'')+
+        (d.estornos.length?lin('Estornos',d.estornos.map(e=>sacDataHora(e.data)+' · '+sacReais(e.valor)+(e.coberto_pelo_ml?' (coberto pelo ML)':' (debitado do vendedor)')).join('<br>')):'')+
+        lin('<b>Ressarcido nesta operação</b>','<b>'+sacReais(d.ressarcido)+'</b>')+`</table>`;
+    } else {
+      const cor=v=>v>0?'var(--green,#166534)':(v<0?'#991b1b':'inherit');
+      res.innerHTML=`<div style="margin-bottom:8px">Conta <b>${sacEsc(d.conta)}</b> · venda ${sacEsc(d.venda)}${d.pedidos.length>1?' · pedidos '+d.pedidos.map(sacEsc).join(', '):''}</div>
+        <table style="width:100%;border-collapse:collapse"><thead><tr><th style="text-align:left;padding:4px 8px">Data e hora</th><th style="text-align:left;padding:4px 8px">Operação</th><th style="text-align:left;padding:4px 8px">Descrição</th><th style="text-align:right;padding:4px 8px">Valor</th></tr></thead><tbody>`+
+        d.movimentos.map(m=>`<tr style="border-top:1px solid var(--border,#ddd)"><td style="padding:4px 8px">${sacDataHora(m.data)}</td><td style="padding:4px 8px">${sacEsc(m.operacao)}</td><td style="padding:4px 8px">${sacEsc(m.descricao)}${m.provavel?' <span class="sac-mut">(confirmar)</span>':''}</td><td style="padding:4px 8px;text-align:right;color:${cor(m.valor)}">${sacReais(m.valor)}</td></tr>`).join('')+
+        `</tbody><tfoot><tr><td colspan="3" style="padding:6px 8px;text-align:right">Entradas</td><td style="text-align:right;padding:6px 8px">${sacReais(d.entradas)}</td></tr>
+        <tr><td colspan="3" style="padding:4px 8px;text-align:right">Saídas</td><td style="text-align:right;padding:4px 8px">${sacReais(d.saidas)}</td></tr>
+        <tr><td colspan="3" style="padding:4px 8px;text-align:right"><b>Saldo final</b></td><td style="text-align:right;padding:4px 8px"><b>${sacReais(d.saldo)}</b></td></tr>
+        <tr><td colspan="3" style="padding:4px 8px;text-align:right">dos quais ressarcimento</td><td style="text-align:right;padding:4px 8px">${sacReais(d.ressarcido)}</td></tr></tfoot></table>`;
+    }
+  }catch(e){ res.innerHTML='<div class="sac-mut">erro: '+sacEsc(e.message)+'</div>'; }
+}
 function sacEsc(x){ return String(x==null?'':x).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 function sacDmy(iso){ if(!iso) return ''; const d=new Date(iso); return d.toLocaleDateString('pt-BR',{timeZone:'America/Sao_Paulo'}); }
 function sacQS(){ const q=[]; if(_sacDe) q.push('de='+_sacDe); if(_sacAte) q.push('ate='+_sacAte); return q.length?'?'+q.join('&'):''; }
@@ -2168,6 +2210,7 @@ function sacIr(aba, btn){
   if(btn){ document.querySelectorAll('#sac-subtabs button').forEach(b=>b.classList.remove('active')); btn.classList.add('active'); }
   else document.querySelectorAll('#sac-subtabs button').forEach(b=>b.classList.toggle('active', b.textContent.trim().toLowerCase()===aba));
   if(_sacTipoSel==='devolucoes'){ carregarDevolucoes(aba); return; }
+  if(_sacTipoSel==='validador'){ sacValidadorTela(); return; }
   if(aba==='geral') carregarSacGeral(); else carregarSacConta(aba);
 }
 async function carregarSacGeral(){

@@ -104,6 +104,7 @@
  "marketplaces/sac/__init__.py",
  "marketplaces/sac/devolucoes.py",
  "marketplaces/sac/router.py",
+ "marketplaces/sac/validador.py",
  "marketplaces/acesso_rede.py",
  "cmv_composicao.py",
  "marketplaces/expedicao/bipagem.py",
