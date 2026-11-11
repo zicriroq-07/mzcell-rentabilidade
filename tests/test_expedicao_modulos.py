@@ -23,12 +23,12 @@ def mods(linhas, agora=None, plat=None, marcas=None):
 
 
 class TestModulos(unittest.TestCase):
-    def test_sete_cartoes_na_ordem_do_monitor(self):
+    def test_oito_cartoes_na_ordem_do_monitor(self):
         r = d.montar([], {}, [], em(9), DIA, cortes.carregar())
         self.assertEqual([m["id"] for m in r["modulos"]],
-                         ["flex", "coleta", "places_meli02", "places_meli03", "dba", "shopee_xpress", "shopee_direta"])
-        self.assertEqual([m["id"] for m in r["modalidades"]], ["flex", "places", "coleta", "dba", "shopee_xpress", "shopee_direta"])
-        self.assertEqual(r["modalidades"][-1]["nome"], "Shopee Entrega Direta")
+                         ["flex", "coleta", "places_meli02", "places_meli03", "dba", "shopee_xpress", "shopee_direta", "magalu"])
+        self.assertEqual([m["id"] for m in r["modalidades"]], ["flex", "places", "coleta", "dba", "shopee_xpress", "shopee_direta", "magalu"])
+        self.assertEqual(r["modalidades"][-2]["nome"], "Shopee Entrega Direta")
 
     def test_places_separa_por_conta_com_corte_proprio(self):
         m = mods([linha("meli02", "Agência", "2026-11-05T13:30:00-03:00"), linha("meli02", "Agência", "2026-11-05T13:30:00-03:00", True),
@@ -105,6 +105,12 @@ class TestModulos(unittest.TestCase):
         self.assertGreater(por["flex"]["pedidos"], 0)
         self.assertGreater(por["places_meli02"]["pedidos"], 0)
         self.assertGreater(por["dba"]["pedidos"], 0)
+
+    def test_magalu_lida_do_bling_com_corte_do_dia(self):
+        m = mods([linha("magalu", "Magalu", em(12).isoformat()), linha("magalu", "Magalu", em(12).isoformat(), checkout=True)])["magalu"]
+        self.assertEqual((m["pedidos"], m["pendentes"], m["prontos"], m["fonte"], m["plataforma"]), (2, 1, 1, "Bling", "Magalu"))
+        self.assertEqual([x["hhmm"] for x in m["marcos"]], ["12:00"])
+        self.assertEqual(mods([])["magalu"]["pedidos"], 0)
 
 
 if __name__ == "__main__":

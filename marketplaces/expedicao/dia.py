@@ -187,7 +187,7 @@ def _modulo(mid, nome, linhas, marcas, agora, dia, etapas=None, sem_dados=False,
         c = por_conta.setdefault(l.get("conta"), {"conta": l.get("conta"), "pendentes": 0, "feitos": 0})
         c["feitos" if estado(l, marcas)[1] else "pendentes"] += 1
     return {"id": mid, "nome": nome, "plataforma": plataforma, "por_conta": sorted(por_conta.values(), key=lambda c: str(c["conta"])),
-            "sem_dados": sem_dados, "fonte": "Bling" if plataforma == "Shopee" else None, "pedidos": None if sem_dados else n,
+            "sem_dados": sem_dados, "fonte": "Bling" if plataforma in ("Shopee", "Magalu") else None, "pedidos": None if sem_dados else n,
             "unidades": None if sem_dados else sum(l.get("unidades") or 0 for l in linhas),
             "prontos": None if sem_dados else prontos, "pendentes": None if sem_dados else n - prontos,
             "percentual": None if sem_dados else (round(100 * prontos / n, 1) if n else 100.0),
@@ -196,7 +196,7 @@ def _modulo(mid, nome, linhas, marcas, agora, dia, etapas=None, sem_dados=False,
 
 
 def _modulos(do_dia: list, marcas: dict, agora: datetime, dia, plataformas: list) -> list:
-    """Cartões do monitor da TV, por corte: Flex, Coleta, Places por conta (cada conta tem corte próprio), Amazon DBA e Shopee."""
+    """Cartões do monitor da TV, por corte: Flex, Coleta, Places por conta (cada conta tem corte próprio), Amazon DBA, Shopee e Magalu."""
     plat = plataformas or []
     mods = [_modulo("flex", "Flex", [l for l in do_dia if l.get("canal") == "Flex"], marcas, agora, dia),
             _modulo("coleta", "Coleta", [l for l in do_dia if l.get("canal") == "Coleta"], marcas, agora, dia)]
@@ -212,6 +212,8 @@ def _modulos(do_dia: list, marcas: dict, agora: datetime, dia, plataformas: list
     for mid, nome, canal in (("shopee_xpress", "Shopee Xpress", "Shopee Xpress"), ("shopee_direta", "Shopee Entrega Direta (Flex)", "Entrega Direta")):
         et = [(c.get("etapa", "Corte do dia"), c["corte"], "corte") for c in plat if c.get("plataforma") == "Shopee" and c.get("canal") == canal]
         mods.append(_modulo(mid, nome, [l for l in shopee if l.get("canal") == canal], marcas, agora, dia, et, sem_dados=not shopee, plataforma="Shopee"))
+    et = [(c.get("etapa", "Corte do dia"), c["corte"], "corte") for c in plat if c.get("plataforma") == "Magalu"]
+    mods.append(_modulo("magalu", "Magalu", [l for l in do_dia if l.get("conta") == "magalu"], marcas, agora, dia, et or None, plataforma="Magalu"))
     return mods
 
 
@@ -219,7 +221,7 @@ def _modalidades(modulos: list, do_dia: list, marcas: dict, agora: datetime, dia
     """Cartões da Expedição com login, um por modalidade: iguais aos da TV, com Places somando as contas."""
     por_id = {m["id"]: dict(m, nome=m["nome"].replace(" (Flex)", "")) for m in modulos}
     por_id["places"] = _modulo("places", "Places", [l for l in do_dia if l.get("canal") == "Agência"], marcas, agora, dia)
-    return [por_id[i] for i in ("flex", "places", "coleta", "dba", "shopee_xpress", "shopee_direta")]
+    return [por_id[i] for i in ("flex", "places", "coleta", "dba", "shopee_xpress", "shopee_direta", "magalu")]
 
 
 def montar(linhas: list, marcas: dict, full: list, agora: datetime, dia, plataformas: list = None) -> dict:

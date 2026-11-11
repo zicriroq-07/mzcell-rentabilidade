@@ -1,5 +1,5 @@
 """
-marketplaces/expedicao/cortes.py — Horários de corte das plataformas que não vêm da API (Amazon DBA e Shopee)
+marketplaces/expedicao/cortes.py — Horários de corte das plataformas que não vêm da API (Amazon DBA, Shopee e Magalu)
 MZ App
 
 Os cortes do Mercado Livre vêm do prazo de cada envio (ml.prazos). Os da Amazon e da Shopee são regras da operação,
@@ -8,6 +8,7 @@ definidas pelo Zicri em 03/11/2026 e conferíveis nos painéis das plataformas (
   DBA (Amazon)               11:00  impressão das etiquetas  ·  14:00  entrega no ponto de coleta
   Shopee Entrega Direta      12:00
   Shopee Xpress              13:00
+  Magalu                     12:00  (padrão a confirmar com a operação)
 
 Para ajustar sem mexer no código, crie cortes_plataformas.json (fora do git) na raiz, com a lista completa no mesmo formato:
   [{"plataforma": "Amazon", "canal": "DBA", "etapa": "Impressão das etiquetas", "corte": "11:00"}, ...]
@@ -24,6 +25,7 @@ PADRAO = [
     {"plataforma": "Amazon", "canal": "DBA", "etapa": "Entrega no ponto de coleta", "corte": "14:00"},
     {"plataforma": "Shopee", "canal": "Entrega Direta", "etapa": "Corte do dia", "corte": "12:00"},
     {"plataforma": "Shopee", "canal": "Shopee Xpress", "etapa": "Corte do dia", "corte": "13:00"},
+    {"plataforma": "Magalu", "canal": "Magalu", "etapa": "Corte do dia", "corte": "12:00"},
 ]
 
 

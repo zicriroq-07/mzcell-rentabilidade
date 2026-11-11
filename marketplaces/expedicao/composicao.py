@@ -8,6 +8,9 @@ Só lê o catálogo já guardado (balanco_catalogo.json); não chama o Bling. Se
 from marketplaces.balanco import catalogo
 from marketplaces.expedicao.bling_checkout import PARES
 
+# Amazon, Shopee e Magalu: Bling da empresa de cada conta (igual a BLING_DA_CONTA em marketplaces/bling/estoque.py)
+OUTRAS = {"amazon01": "bling01", "amazon02": "bling02", "shopee": "bling01", "magalu": "bling01"}
+
 try:
     from cmv_composicao import DIRETO_NO_PRODUTO
 except ImportError:
@@ -39,7 +42,7 @@ def anexar(linhas: list) -> list:
         return linhas
     saida = []
     for l in linhas:
-        par = PARES.get(l.get("conta"))
+        par = PARES.get(l.get("conta")) or OUTRAS.get(l.get("conta"))
         itens = []
         for i in l.get("itens") or []:
             s = _chave(i.get("sku"))

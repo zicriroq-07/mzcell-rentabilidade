@@ -26,15 +26,15 @@ class Linhas(unittest.TestCase):
                               (s.bling_checkout, "_pedidos", lambda c: self.pedidos), (s.cortes, "carregar", lambda: []),
                               (s, "INICIO", "2026-11-01")):
             p = mock.patch.object(alvo, nome, v); p.start(); self.addCleanup(p.stop)
-        p = mock.patch.dict(s._lojas, {"ts": 0.0, "ids": set()}); p.start(); self.addCleanup(p.stop)
+        p = mock.patch.dict(s._lojas, {"ts": 0.0, "ids": {}}); p.start(); self.addCleanup(p.stop)
         p = mock.patch.dict(s._detalhes, clear=True); p.start(); self.addCleanup(p.stop)
 
     def get(self, conta, path, **k):
         self.chamadas.append(path)
         if path == "/canais-venda":
-            return 200, {"data": [{"id": 10, "descricao": "14- Shopee CNPJ"}, {"id": 11, "descricao": "02- MERCADO LIVRE"}]}
+            return 200, {"data": [{"id": 10, "descricao": "14- Shopee CNPJ"}, {"id": 11, "descricao": "02- MERCADO LIVRE"}, {"id": 12, "descricao": "03- MAGALU"}]}
         pid = int(path.rsplit("/", 1)[1])
-        return 200, {"data": {"transporte": {"volumes": [{"servico": SERVICO[pid]}]}, "itens": [{"codigo": "SKU", "descricao": "Produto", "quantidade": 2}]}}
+        return 200, {"data": {"transporte": {"volumes": [{"servico": SERVICO.get(pid, "Agência Magalu")}]}, "itens": [{"codigo": "SKU", "descricao": "Produto", "quantidade": 2}]}}
 
     def carregar(self, *lista):
         self.pedidos = {p["numeroLoja"]: p for p in lista}
@@ -89,6 +89,14 @@ class Linhas(unittest.TestCase):
             ls, erros = s.linhas(AGORA)
         self.assertEqual(ls, [])
         self.assertIn("401", erros["shopee"])
+
+    def test_magalu_entra_com_modalidade_unica_e_corte_proprio(self):
+        with mock.patch.object(s.cortes, "carregar", lambda: [{"plataforma": "Magalu", "canal": "Magalu", "corte": "10:30"}]):
+            ls, erros = self.carregar(ped(7, 6, loja=12), ped(8, 24, data="2026-11-06", loja=12))
+        self.assertEqual(erros, {})
+        self.assertEqual([(l["conta"], l["plataforma"], l["canal"], l["bling_checkout"]) for l in ls],
+                         [("magalu", "Magalu", "Magalu", False), ("magalu", "Magalu", "Magalu", True)])
+        self.assertEqual(ls[0]["meta"], "2026-11-06T10:30:00-03:00")
 
 
 if __name__ == "__main__":

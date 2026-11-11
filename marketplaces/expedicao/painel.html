@@ -17,7 +17,7 @@
 @media (min-width:1100px){.mods{grid-template-columns:repeat(3,1fr)}}
 @media (min-width:1500px){.mods{grid-template-columns:repeat(4,1fr)}}
 .mod{background:#1e293b;border-radius:14px;padding:16px 20px 14px;border-top:7px solid #475569;display:flex;flex-direction:column;gap:6px}
-.mod.flex{border-color:#22c55e}.mod.coleta{border-color:#3b82f6}.mod.places{border-color:#f59e0b}.mod.dba{border-color:#a855f7}.mod.shopee{border-color:#f97316}
+.mod.flex{border-color:#22c55e}.mod.coleta{border-color:#3b82f6}.mod.places{border-color:#f59e0b}.mod.dba{border-color:#a855f7}.mod.shopee{border-color:#f97316}.mod.magalu{border-color:#0ea5e9}
 .mod h2{margin:0;font-size:26px;display:flex;justify-content:space-between;align-items:baseline}
 .mod h2 small{font-size:16px;color:#94a3b8;font-weight:600}
 .rot{font-size:14px;letter-spacing:1.5px;color:#94a3b8;margin-top:2px}
@@ -106,7 +106,7 @@ function cartao(m){
  return h+'</div>';
 }
 // pedidos sem checkout: na TV só os totais; a lista pedido a pedido fica na Expedição, com login
-const contaTv=c=>String(c||'').replace(/^meli0?(\d)$/,'Meli $1').replace(/^amazon0?(\d)$/,'Amazon $1').replace(/^shopee$/,'');
+const contaTv=c=>String(c||'').replace(/^meli0?(\d)$/,'Meli $1').replace(/^amazon0?(\d)$/,'Amazon $1').replace(/^(shopee|magalu)$/,'');
 function semCheckout(ls){
  if(!ls.length)return '';
  const tot=ls.reduce((a,x)=>a+x.pedidos,0);

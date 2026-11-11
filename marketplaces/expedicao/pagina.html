@@ -78,13 +78,12 @@
 <main>
   <div id="cancelamentos"></div>
   <div class="kpis" id="kpis-mod"></div>
-  <div id="shopee-semchk"></div>
   <div class="kpis" id="kpis" style="display:none"></div>
   <div class="abas"><button id="aba-hoje" class="ativa" type="button">Hoje</button><button id="aba-proximos" type="button">Próximos dias</button><button id="aba-prontos" type="button">Prontos para o envio</button></div>
   <div id="erros"></div>
   <div id="lista"></div>
   <p class="nota">Protótipo, somente leitura. Mercado Livre: Flex (meta interna 12h; passagens 9h e 13h), Coleta na meli01 e Agência na meli02/03 (preparo termina 30 min antes do prazo do ML).
-  Amazon DBA (corte 11h, ponto até 14h) e Shopee (Entrega Direta 12h, Xpress 13h) entram nas próximas etapas. Verde: mais de 60 min. Amarelo: até 60 min. Vermelho: vencido.</p>
+  Amazon DBA (corte 11h, ponto até 14h), Shopee (Entrega Direta 12h, Xpress 13h) e Magalu (12h): pedidos e checkout lidos do Bling (Verificado = checkout feito). Verde: mais de 60 min. Amarelo: até 60 min. Vermelho: vencido.</p>
 </main>
 <script>
   var estBling = {};
@@ -155,7 +154,7 @@
     var min = Math.round((new Date(l.meta) - new Date()) / 60000);
     if (min < 0) {
       var ate = l.prazo_ml ? Math.round((new Date(l.prazo_ml) - new Date()) / 60000) : -1;
-      if (ate >= 0) return { cls: "am", txt: "passou da meta há " + dur(-min), min: min, extra: "ML aceita por mais " + dur(ate) };
+      if (ate >= 0) return { cls: "am", txt: "passou da meta há " + dur(-min), min: min, extra: (l.plataforma || "ML") + " aceita por mais " + dur(ate) };
       return { cls: "vm", txt: "VENCIDO há " + dur(-min), min: min };
     }
     return { cls: min <= AMARELO_MIN ? "am" : "ok", txt: "faltam " + dur(min), min: min };
@@ -171,7 +170,7 @@
     return "<details class='kpi' style='margin-bottom:10px'" + (aberto ? " open" : "") + " ontoggle='semChkAberto=this.open'><summary style='cursor:pointer'><b>Pedidos sem checkout (" + ls.length + ")</b></summary>" +
       ls.map(function (l) {
         var skus = l.itens.map(function (i) { return esc(i.qtd) + "× " + esc(i.sku || "sem SKU"); }).join(", ");
-        return "<div class='n'><span><b>" + esc(l.canal) + "</b> · " + esc(l.conta) + " · " + blingDaConta(l.conta) + " " + (l.bling_numero ? "pedido " + esc(l.bling_numero) + " (" + esc(l.bling_situacao || "") + ")" : "sem pedido") + " · " + numVenda(l) + (l.envio ? " · etiqueta " + esc(l.envio) : "") + " · " + skus + "</span><span>" + esc(l._f.txt) + "</span></div>";
+        return "<div class='n'><span><b>" + esc(nomeCanal(l)) + "</b> · " + esc(l.conta) + " · " + blingDaConta(l.conta) + " " + (l.bling_numero ? "pedido " + esc(l.bling_numero) + " (" + esc(l.bling_situacao || "") + ")" : "sem pedido") + " · " + numVenda(l) + (l.envio && String(l.envio) !== String(l.pedido) ? " · etiqueta " + esc(l.envio) : "") + " · " + skus + "</span><span>" + esc(l._f.txt) + "</span></div>";
       }).join("") + "</details>";
   }
   function desenhar() {
@@ -201,7 +200,7 @@
     };
     var tot = { total: 0, hoje: 0, prox: 0, vm: 0, aguardando: 0, canais: {} };
     Object.keys(contas).forEach(function (k) { var c = contas[k]; ['total','hoje','prox','vm','aguardando'].forEach(function (f) { tot[f] += c[f]; }); });
-    var nomes = { meli01: 'Meli01 (coleta)', meli02: 'Meli02 (agência)', meli03: 'Meli03 (agência)' };
+    var nomes = { meli01: 'Meli01 (coleta)', meli02: 'Meli02 (agência)', meli03: 'Meli03 (agência)', amazon01: 'Amazon01 (DBA)', amazon02: 'Amazon02 (DBA)', shopee: 'Shopee', magalu: 'Magalu' };
     var logHtml = Object.keys(logi).map(function (k) { return "<div class='n'><span>" + esc(k) + "</span><b>" + logi[k].p + " ped · " + logi[k].u + " un</b></div>"; }).join('');
     // 1º: montagem de hoje por canal (pedidos e unidades). 2º: totais. 3º (abaixo): próximos dias.
     var mHoje = abertas.filter(function (l) { return l.status === "ready_to_ship" && emAberto(l) && !atrasoAnterior(l) && ehHoje(l) && !jaMontado(l); });
@@ -215,7 +214,7 @@
     el("kpis").innerHTML = "<div class='kpi'><h3>Montagem de hoje (por canal)</h3>" + (montHtml || "<span class='meta'>nenhum pedido para montar hoje</span>") + "</div>" +
       "<div class='kpi'><h3>Checkout feito · levar ou aguardar coleta</h3>" + (expHtml || "<span class='meta'>nenhum pedido aguardando coleta/postagem</span>") + "</div>" +
       "<div class='kpi'><h3>Logística (todas as contas)</h3>" + (logHtml || "<span class='meta'>sem envios</span>") + "</div>" +
-      card('Total', Object.assign(tot, { canais: {} })) + ['meli01','meli02','meli03'].map(function (k) { return card(nomes[k], contas[k] || { total: 0, hoje: 0, prox: 0, vm: 0, aguardando: 0, canais: {} }); }).join('');
+      card('Total', Object.assign(tot, { canais: {} })) + CONTAS_EXP.concat(OUTRAS.filter(function (k) { return contas[k]; })).map(function (k) { return card(nomes[k], contas[k] || { total: 0, hoje: 0, prox: 0, vm: 0, aguardando: 0, canais: {} }); }).join('');
     el("erros").innerHTML = Object.keys(dados.erros || {}).map(function (c) { return "<div class='erro'>❌ " + esc(c) + ": " + esc(dados.erros[c]) + " (conta não carregada)</div>"; }).join("");
     el("erros").innerHTML += Object.keys(dados.errosBling || {}).map(function (c) { return "<div class='erro'>⚠ " + esc(dados.errosBling[c]) + " (sem a situação do Bling; valem só as marcas do galpão)</div>"; }).join("");
     var html = "";
@@ -227,7 +226,7 @@
         var f = l._f;
         var its = l.itens.map(function (i) { return "<div class='it'><b>" + esc(i.qtd) + "×</b> " + esc((i.titulo || "").slice(0, 70)) + (i.sku ? " <span class='meta'>" + esc(i.sku) + "</span>" : "") + "</div>"; }).join("");
         html += "<div class='linha " + f.cls + "'><div><div class='tempo'>" + esc(f.txt) + "</div>" +
-          "<div class='meta'>meta " + (l.meta ? hm(l.meta) : "-") + "</div>" + (l.prazo_ml ? "<div class='meta'>ML até " + hm(l.prazo_ml) + "</div>" : "") +
+          "<div class='meta'>meta " + (l.meta ? hm(l.meta) : "-") + "</div>" + (l.prazo_ml ? "<div class='meta'>" + esc(l.plataforma || "ML") + " até " + hm(l.prazo_ml) + "</div>" : "") +
           (f.extra ? "<div class='meta'>" + esc(f.extra) + "</div>" : "") + "</div>" +
           "<div><span class='tag" + (verificadoBling(l) ? " ok'>checkout feito no Bling · levar ou aguardar coleta" : "'>aguardando liberação pelo galpão") + "</span>" +
           (porEnvio[l.envio] > 1 ? "<span class='tag am'>mesmo envio de " + porEnvio[l.envio] + " pedidos</span>" : "") +
@@ -242,9 +241,9 @@
       "<button class='" + (vista === 'contas' ? 'ativa' : '') + "' onclick=\"trocaVista('contas')\">Por conta</button>" +
       "<button class='" + (vista === 'pedidos' ? 'ativa' : '') + "' onclick=\"trocaVista('pedidos')\">Por pedido</button></div>" +
       "<div class='filtros'>Conta <select onchange=\"setFiltro('conta', this.value)\">" +
-        [['todas', 'Todas']].concat(CONTAS_EXP.map(function (c) { return [c, c]; })).map(function (o) { return "<option value='" + o[0] + "'" + (filtroConta === o[0] ? " selected" : "") + ">" + o[1] + "</option>"; }).join("") +
+        [['todas', 'Todas']].concat(CONTAS_EXP.concat(OUTRAS).map(function (c) { return [c, c]; })).map(function (o) { return "<option value='" + o[0] + "'" + (filtroConta === o[0] ? " selected" : "") + ">" + o[1] + "</option>"; }).join("") +
       "</select> Modalidade <select onchange=\"setFiltro('mod', this.value)\">" +
-        [['todas', 'Todas'], ['flex', 'Flex'], ['places', 'Places (Coleta e Agência)']].map(function (o) { return "<option value='" + o[0] + "'" + (filtroMod === o[0] ? " selected" : "") + ">" + o[1] + "</option>"; }).join("") +
+        [['todas', 'Todas'], ['flex', 'Flex'], ['places', 'Places (Coleta e Agência)'], ['Amazon', 'Amazon DBA'], ['Shopee', 'Shopee'], ['Magalu', 'Magalu']].map(function (o) { return "<option value='" + o[0] + "'" + (filtroMod === o[0] ? " selected" : "") + ">" + o[1] + "</option>"; }).join("") +
       "</select> <button class='btn-m' onclick='imprimirMontagem()'>Imprimir montagem</button></div>";
     var paraMontar = doAba.filter(aMontar);
     var atrasadosTodos = abertas.filter(function (l) { return emAberto(l) && atrasoAnterior(l); });
@@ -278,7 +277,7 @@
         var venc = atrasoAnterior(l);
         var its = l.itens.map(function (i) { return "<div class='it'><b>" + esc(i.qtd) + "×</b> " + esc((i.titulo || "").slice(0, 70)) + (i.sku ? " <span class='meta'>" + esc(i.sku) + "</span>" : "") + "</div>"; }).join("");
         h += "<div class='linha " + (venc ? "vm" : "cz") + "'><div><div class='tempo'>" + (venc ? "prazo vencido: cobrar a coleta ou levar" : "aguardando coleta/agência") + "</div>" +
-          (l.prazo_ml ? "<div class='meta'>ML até " + hm(l.prazo_ml) + "</div>" : "") + "</div>" +
+          (l.prazo_ml ? "<div class='meta'>" + esc(l.plataforma || "ML") + " até " + hm(l.prazo_ml) + "</div>" : "") + "</div>" +
           "<div><span class='tag ok'>" + (verificadoBling(l) ? "checkout feito no Bling " + esc(l.bling_numero) : "checkout marcado no galpão") + "</span>" +
           "<div class='marcas'>" + (marcado(l, "checkout") ? "<button class='btn-m' onclick=\"marcarEnvio('" + l.envio + "','checkout',false)\" title=\"Volta o pedido para a montagem\">Desfazer checkout</button>" : "") +
           "<button class='btn-m' onclick=\"marcarEnvio('" + l.envio + "','liberado',true)\" title=\"Libera o pedido: sai da tela\">Liberar pedido</button></div>" +
@@ -303,7 +302,7 @@
     if (!grupos.length) return montagemHtml([]);
     return grupos.map(function (ls2) {
       var l = ls2[0], hora = (l.meta || "").slice(11, 16);
-      return montagemHtml(ls2, l.canal === "Flex" ? "Flex" : (l.canal === "Agência" ? "Places" : l.canal) + " · " + l.conta + (hora ? " · corte " + hora : " · sem horário"));
+      return montagemHtml(ls2, l.canal === "Flex" ? "Flex" : nomeCanal(l) + " · " + l.conta + (hora ? " · corte " + hora : " · sem horário"));
     }).join("");
   }
   // Um pacote é uma etiqueta (envio): compra de carrinho vira vários pedidos no mesmo envio, um produto em cada.
@@ -370,9 +369,16 @@
   }
   function montagemContasHtml(ls) {
     var h = "";
-    ["meli01", "meli02", "meli03"].forEach(function (c) {
+    CONTAS_EXP.concat(OUTRAS).forEach(function (c) {
       var lc = ls.filter(function (l) { return l.conta === c; });
       if (!lc.length) return;
+      if (OUTRAS.indexOf(c) >= 0) {   // Amazon, Shopee e Magalu: um bloco por modalidade
+        h += "<h2>" + esc(c) + " <small>· " + plural(lc.length, 'pedido', 'pedidos') + "</small></h2>";
+        lc.map(nomeCanal).filter(function (v, i, a) { return a.indexOf(v) === i; }).sort().forEach(function (n) {
+          h += montagemHtml(lc.filter(function (l) { return nomeCanal(l) === n; }), n);
+        });
+        return;
+      }
       var flex = lc.filter(function (l) { return l.canal === "Flex"; });
       var places = lc.filter(function (l) { return l.canal !== "Flex"; });
       var canais = places.map(function (l) { return l.canal; }).filter(function (v, i, a) { return a.indexOf(v) === i; }).sort().join(" e ");
@@ -401,7 +407,7 @@
     base.forEach(function (l) {
       var hora = (l.meta || "").slice(11, 16);
       var k = l.canal === "Flex" ? "0|Flex|" + hora + "|" + l.conta : "1|" + hora + "|" + l.canal + "|" + l.conta;   // Flex primeiro, os demais pelo corte
-      var g = grupos[k] = grupos[k] || { canal: l.canal, conta: l.conta, hora: hora, linhas: [] };
+      var g = grupos[k] = grupos[k] || { canal: l.canal, conta: l.conta, plataforma: l.plataforma, hora: hora, linhas: [] };
       g.linhas.push(l);
     });
     var corpo = Object.keys(grupos).sort().map(function (k) {
@@ -415,8 +421,8 @@
         });
       });
       var lista = Object.keys(prod).map(function (c) { return prod[c]; }).sort(function (a, b) { return b.un - a.un; });
-      var titulo = (g.canal === "Flex" ? "Flex" : "Places · " + g.canal) + " · " + g.conta.toUpperCase() + (g.hora ? (g.canal === "Flex" ? " · horário " : " · corte ") + g.hora : "");
-      var cor = { meli01: "#1d4ed8", meli02: "#15803d", meli03: "#c2410c" }[g.conta] || "#111";
+      var titulo = (g.canal === "Flex" ? "Flex" : (g.plataforma ? nomeCanal(g) : "Places · " + g.canal)) + " · " + g.conta.toUpperCase() + (g.hora ? (g.canal === "Flex" ? " · horário " : " · corte ") + g.hora : "");
+      var cor = { meli01: "#1d4ed8", meli02: "#15803d", meli03: "#c2410c", amazon01: "#7e22ce", amazon02: "#7e22ce", shopee: "#ea580c", magalu: "#0369a1" }[g.conta] || "#111";
       return "<h2 style='color:" + cor + "'>" + esc(titulo) + "</h2><p>" + plural(g.linhas.length, "pedido", "pedidos") + " · " + plural(total, "unidade", "unidades") + "</p>" +
         "<table><tr><th>Produto</th><th>SKU</th><th>Montar</th><th>Estoque</th><th>Fica</th></tr>" +
         lista.map(function (p) {
@@ -462,17 +468,24 @@
   function passaFiltro(l) {
     if (filtroConta !== "todas" && l.conta !== filtroConta) return false;
     if (filtroMod === "flex") return l.canal === "Flex";
-    if (filtroMod === "places") return l.canal !== "Flex";
+    if (filtroMod === "places") return l.canal !== "Flex" && !l.plataforma;
+    if (filtroMod !== "todas") return l.plataforma === filtroMod;
     return true;
   }
   // Número que o ML mostra na tela de venda: o pacote quando existe; o pedido aparece ao lado.
   // Bling da empresa de cada conta (igual a BLING_DA_CONTA em marketplaces/bling/estoque.py)
   function blingDaConta(c) { return "Bling " + ({meli01: 1, amazon01: 1, shopee: 1, magalu: 1, meli02: 2, amazon02: 2, meli03: 3}[c] || "?"); }
+  // Nome da modalidade na tela: Places para a agência do ML; Amazon/Shopee/Magalu com a plataforma na frente quando falta
+  function nomeCanal(l) {
+    if (l.canal === "Agência") return "Places";
+    if (l.plataforma && String(l.canal || "").indexOf(l.plataforma) < 0) return l.plataforma + " " + (l.canal || "");
+    return l.canal || l.plataforma || "";
+  }
   function numVenda(l) {
     if (l.pacote && String(l.pacote) !== String(l.pedido)) return "pacote " + esc(l.pacote) + " <span class='meta'>· pedido " + esc(l.pedido) + "</span>";
     return "pedido " + esc(l.pedido);
   }
-  // Um cartão por modalidade, com plataforma, pendentes e com checkout (inclui Amazon DBA e Shopee, que esta tela não lista)
+  // Um cartão por modalidade, com plataforma, pendentes e com checkout (Mercado Livre, Amazon DBA, Shopee e Magalu)
   function carregarModalidades() {
     fetch("/expedicao/dia").then(function (r) { return r.ok ? r.json() : null; }).then(function (d) {
       if (!d || !(d.modalidades || d.modulos)) return;
@@ -481,34 +494,27 @@
           "<div class='n" + (m.pendentes ? " vm" : "") + "'><span>Pendentes</span><b>" + (m.pendentes || 0) + "</b></div><div class='n'><span>Com checkout</span><b>" + (m.prontos || 0) + "</b></div>") + "</div>";
       }).join("");
     }).catch(function () {});
-    // Shopee: lida do Bling (não há leitura da Shopee); pedido a pedido o que está sem checkout.
-    // A rota aberta da TV não traz a lista pedido a pedido; esta pede login.
-    fetch("/expedicao/sem-checkout").then(function (r) { return r.ok ? r.json() : []; }).then(function (lista) {
-      var shp = (lista || []).filter(function (x) { return x.fonte === "Bling"; });
-      el("shopee-semchk").innerHTML = !shp.length ? "" :
-        "<details class='kpi' style='margin-bottom:10px'><summary style='cursor:pointer'><b>Shopee sem checkout (" + shp.length + ")</b> <span class='meta'>· dados do Bling</span></summary>" +
-        shp.map(function (x) {
-          var skus = (x.itens || []).map(function (i) { return esc(i.qtd) + "× " + esc(i.sku || "sem SKU"); }).join(", ");
-          return "<div class='n" + (x.atrasado ? " vm" : "") + "'><span><b>" + esc(x.canal) + "</b> · " + blingDaConta(x.conta) + " pedido " + esc(x.bling_numero) + " (" + esc(x.bling_situacao || "") + ") · pedido Shopee " + esc(x.pedido) + " · " + skus + "</span><span>" + (x.atrasado ? "corte vencido" : "corte " + (x.meta ? hm(x.meta) : "-")) + "</span></div>";
-        }).join("") + "</details>";
-    }).catch(function () {});
   }
   carregarModalidades();
   setInterval(carregarModalidades, 30000);
   function carregarFotos() {
-    var contasLista = dados.linhas.map(function (l) { return l.conta; }).filter(function (c, i, a) { return a.indexOf(c) === i; });
+    var contasLista = dados.linhas.map(function (l) { return l.conta; }).filter(function (c, i, a) { return a.indexOf(c) === i && CONTAS_EXP.indexOf(c) >= 0; });
     return Promise.all(contasLista.map(function (c) {
       return fetch("/fotos/" + c).then(function (r) { return r.json(); }).then(function (d) { Object.assign(fotos, d.fotos || {}); }).catch(function () {});
     })).then(desenhar);
   }
   // Carrega cada conta em paralelo e mostra cada uma assim que chega (o ML demora por pedido).
   var CONTAS_EXP = ["meli01", "meli02", "meli03"];
+  // Amazon DBA, Shopee e Magalu: uma leitura só (/expedicao/outros, o mesmo instantâneo do monitor), checkout pelo Bling
+  var OUTRAS = ["amazon01", "amazon02", "shopee", "magalu"];
+  var FONTES = CONTAS_EXP.concat(["outros"]);
+  var NOME_FONTE = { outros: "Amazon, Shopee e Magalu (Bling)" };
   // Painel de progresso: status por conta, tempo decorrido e restante estimado (média da última consulta, guardada no navegador)
   var prog = {}, progTimer = null;
   function estimativa(c) { try { var v = localStorage.getItem("exp_dur_" + c); return v ? Number(v) : null; } catch (e) { return null; } }
   function progIniciar() {
     prog = {};
-    CONTAS_EXP.forEach(function (c) { prog[c] = { st: "carregando", ini: Date.now(), fim: null, erro: null }; });
+    FONTES.forEach(function (c) { prog[c] = { st: "carregando", ini: Date.now(), fim: null, erro: null }; });
     el("prog").style.display = "block"; progRender();
     clearInterval(progTimer); progTimer = setInterval(progRender, 1000);
   }
@@ -518,7 +524,7 @@
   }
   function progRender() {
     var box = el("prog"), agora = Date.now(), prontas = 0;
-    var linhas = CONTAS_EXP.map(function (c) {
+    var linhas = FONTES.map(function (c) {
       var p = prog[c], dec = Math.round(((p.fim || agora) - p.ini) / 1000), est = estimativa(c), pct, txt;
       if (p.st === "pronto") { prontas++; pct = 100; txt = "pronto em " + dec + " s"; }
       else if (p.st === "erro") { prontas++; pct = 100; txt = "erro: " + esc(p.erro); }
@@ -526,29 +532,44 @@
         pct = est ? Math.min(95, Math.round(dec * 1000 / est * 100)) : 10;
         txt = "carregando há " + dec + " s · " + (est ? "falta ~" + Math.max(0, Math.round(est / 1000) - dec) + " s (última consulta: " + Math.round(est / 1000) + " s)" : "primeira consulta, sem estimativa");
       }
-      return "<div class='prog-l'><b>" + esc(c) + "</b> <span class='meta'>" + txt + "</span><div class='bar'><i style='width:" + pct + "%'></i></div></div>";
+      return "<div class='prog-l'><b>" + esc(NOME_FONTE[c] || c) + "</b> <span class='meta'>" + txt + "</span><div class='bar'><i style='width:" + pct + "%'></i></div></div>";
     }).join("");
-    box.innerHTML = "<div class='meta'>Carregando dados do ML: " + prontas + " de " + CONTAS_EXP.length + " contas prontas</div>" + linhas;
+    box.innerHTML = "<div class='meta'>Carregando os pedidos: " + prontas + " de " + FONTES.length + " leituras prontas</div>" + linhas;
   }
   function progParar() { clearInterval(progTimer); progRender(); setTimeout(function () { el("prog").style.display = "none"; }, 4000); }
   function carregar(forcar) {
     el("sub").textContent = "carregando…"; el("atualizar").disabled = true;
-    var acc = { gerado_em: null, linhas: [], erros: {}, errosBling: {} }, faltam = CONTAS_EXP.length;
+    var acc = { gerado_em: null, linhas: [], erros: {}, errosBling: {} }, faltam = FONTES.length;
     dados = acc; progIniciar();
     fetch("/expedicao/marcas").then(function (r) { return r.ok ? r.json() : {}; }).then(function (m) { marcasExp = m || {}; desenhar(); }).catch(function () {});
-    CONTAS_EXP.forEach(function (c) {
+    FONTES.forEach(function (c) {
       var erro = null;
-      fetch("/expedicao/galpao?contas=" + c + (forcar ? "&atualizar=true" : "")).then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
-        .then(function (d) { acc.linhas = acc.linhas.concat(d.linhas || []); Object.assign(acc.erros, d.erros || {}); Object.assign(acc.errosBling, d.erros_bling || {}); acc.gerado_em = d.gerado_em || acc.gerado_em; })
+      var url = c === "outros" ? "/expedicao/outros" : "/expedicao/galpao?contas=" + c + (forcar ? "&atualizar=true" : "");
+      fetch(url).then(function (r) {
+          if (c === "outros" && r.status === 404) return {};          // painel fechado nesta máquina: segue só com o ML
+          if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+        .then(function (d) {
+          if (d.carregando) setTimeout(carregarOutros, 15000);
+          acc.linhas = acc.linhas.concat(d.linhas || []); Object.assign(acc.erros, d.erros || {}); Object.assign(acc.errosBling, d.erros_bling || {});
+          if (c !== "outros") acc.gerado_em = d.gerado_em || acc.gerado_em; })
         .catch(function (e) { erro = e.message; acc.erros[c] = e.message; })
         .then(function () {
           progFim(c, erro);
           faltam--;
           desenhar();
           if (faltam === 0) { el("atualizar").disabled = false; carregarFotos(); progParar(); }
-          else el("sub").textContent = "carregando (" + (CONTAS_EXP.length - faltam) + " de " + CONTAS_EXP.length + " contas)…";
+          else el("sub").textContent = "carregando (" + (FONTES.length - faltam) + " de " + FONTES.length + " leituras)…";
         });
     });
+  }
+  // Primeira leitura do instantâneo depois de ligar o servidor: tenta de novo só a parte da Amazon, Shopee e Magalu
+  function carregarOutros() {
+    fetch("/expedicao/outros").then(function (r) { return r.ok ? r.json() : null; }).then(function (d) {
+      if (!d || !dados) return;
+      if (d.carregando) { setTimeout(carregarOutros, 15000); return; }
+      dados.linhas = dados.linhas.filter(function (l) { return OUTRAS.indexOf(l.conta) < 0; }).concat(d.linhas || []);
+      Object.assign(dados.erros, d.erros || {}); desenhar();
+    }).catch(function () {});
   }
   // Cancelados no ML que seguem ativos no Bling: o aviso fica até o Bling passar para Cancelado
   function abrirNoBling(conta, url) {
@@ -593,7 +614,7 @@
       }).catch(function () {});
   }
   function carregarBling() {
-    CONTAS_EXP.forEach(function (c) {
+    CONTAS_EXP.concat(OUTRAS).forEach(function (c) {
       fetch("/bling/estoque/" + c).then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
         .then(function (d) { if (d.itens) { estBling[c] = d; desenhar(); } }).catch(function () {});
     });

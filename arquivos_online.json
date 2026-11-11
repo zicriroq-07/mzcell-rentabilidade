@@ -114,5 +114,6 @@
  "marketplaces/balanco/geral.py",
  "marketplaces/balanco/geral.html",
  "marketplaces/expedicao/composicao.py",
+ "marketplaces/expedicao/amazon_bling.py",
  "marketplaces/expedicao/shopee_bling.py"
 ]

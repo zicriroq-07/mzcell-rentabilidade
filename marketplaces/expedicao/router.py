@@ -3,7 +3,8 @@ marketplaces/expedicao/router.py — Endpoints /expedicao/* (somente leitura)
 MZ App
 
 GET /expedicao          página do mapa (HTML)
-GET /expedicao/galpao   JSON com os envios do galpão e os prazos (ML; Amazon e Shopee entram depois)
+GET /expedicao/galpao   JSON com os envios do galpão e os prazos (Mercado Livre)
+GET /expedicao/outros   Amazon DBA, Shopee e Magalu (checkout pelo Bling), do instantâneo do monitor
 """
 
 import os
@@ -118,6 +119,28 @@ def dia(simular: bool = False, dia: str = None, hora: str = None, atualizar: boo
     """Painel do dia. `simular=1` usa dados fictícios (nada real é lido nem gravado); `dia` AAAA-MM-DD (padrão: hoje;
     na simulação, amanhã) e `hora` HH:MM (só na simulação: o relógio simulado)."""
     return _dia(simular, dia, hora, atualizar)
+
+
+PLATAFORMA = {"amazon01": "Amazon", "amazon02": "Amazon", "shopee": "Shopee", "magalu": "Magalu"}
+
+
+def _para_pagina(l: dict) -> dict:
+    """Linha da Amazon, Shopee ou Magalu no formato que a tela da Expedição usa para o Mercado Livre:
+    em montagem até o checkout; DBA já no ponto de coleta conta como postado (sai da tela)."""
+    return dict(l, plataforma=l.get("plataforma") or PLATAFORMA.get(l.get("conta")), status="ready_to_ship",
+                substatus="dropped_off" if l.get("no_ponto") else None, liberado=True)
+
+
+@router.get("/outros")
+def outros():
+    """Amazon DBA, Shopee e Magalu para a montagem e a gestão da Expedição (mesmo instantâneo do monitor). Pede login na rede."""
+    _painel_liberado()
+    snap = snapshot.obter()
+    if snap["dados"] is None:
+        return {"carregando": True, "linhas": [], "erros": {}, "gerado_em": None}
+    linhas = [_para_pagina(l) for l in snap["dados"]["linhas"] if l.get("conta") in PLATAFORMA]
+    erros = {k: v for k, v in (snap["dados"].get("erros") or {}).items() if any(c in k for c in PLATAFORMA)}
+    return {"carregando": False, "linhas": composicao.anexar(linhas), "erros": erros, "gerado_em": snap["iso"]}
 
 
 @router.get("/sem-checkout")
