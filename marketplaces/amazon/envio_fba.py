@@ -1,24 +1,33 @@
 """
-marketplaces/amazon/envio_fba.py — Criação de envio FBA (Fulfillment Inbound v2024-03-20)
+marketplaces/amazon/envio_fba.py — Criação de envio FBA (Fulfillment Inbound v2024-03-20) + NF-e de remessa (Invoices API)
 MZ App
 
-ESCREVE na Amazon. Tudo simula por padrão: só cria, agenda ou cancela com --confirmar.
-Fluxo validado em 31/10/2026 na amazon01 (FBA19VTQKGBW): plano → embalagem → destino → transporte.
+ESCREVE na Amazon. Tudo simula por padrão: só cria, agenda, emite NF ou cancela com --confirmar.
+Fluxo validado por API na amazon01 (FBA19VTQKGBW em 31/10; FBA19W1VZFVX em 04/11 com NF SUCCESS e coleta reservada).
+Guia completo, com a ordem e os cuidados: marketplaces/amazon/ENVIO_FBA.md  (leia antes de operar).
+
+ORDEM VALIDADA:  simular -> criar -> agendar -> nf -> (Seller Central: DANFE e etiquetas) -> entregar as caixas
 
   simular   valida SKU, quantidades e origem; mostra o que seria enviado. Não escreve nada.
   criar     cria o plano, define as caixas, confirma o destino e lista as datas de coleta. NÃO agenda.
   agendar   escolhe a coleta (--data AAAA-MM-DD ou --mais-cedo) e confirma o transporte.
+  nf        NF-e de remessa (REMITTANCE/INBOUND_SHIPMENT): sem --confirmar só mostra o status; com --confirmar pede a emissão
+            e espera até 10 min. A reserva do agendamento da transportadora aparece sozinha no Seller Central (não há API para ela).
   cancelar  cancela um plano que ainda não foi enviado.
   status    mostra plano, envio e coleta.
 
 Uso (venv):
   python -m marketplaces.amazon.envio_fba simular amazon01 --sku KIT2MIC-FBA --caixas 3 --por-caixa 30 --peso 19 --dim 53x33x33
   python -m marketplaces.amazon.envio_fba criar   amazon01 --sku KIT2MIC-FBA --caixas 3 --por-caixa 30 --peso 19 --dim 53x33x33 --confirmar
-  python -m marketplaces.amazon.envio_fba agendar amazon01 --plano wf... --mais-cedo --confirmar
+  python -m marketplaces.amazon.envio_fba agendar amazon01 --plano wf... --data 2026-11-05 --confirmar     (ou --mais-cedo)
+  python -m marketplaces.amazon.envio_fba nf      amazon01 --plano wf... --confirmar
   python -m marketplaces.amazon.envio_fba cancelar amazon01 --plano wf... --confirmar
+  Caixa mista:        --itens SKU1=15,SKU2=10 --caixas 2 --peso 4.2 --dim 57x33x33
+  Caixas diferentes:  --caixa "3;53x33x33;19;SKU1=30" --caixa "1;40x30x30;8;SKU2=12"   (repita --caixa)
 
-Regras: um SKU por execução; endereço de origem e contato em amazon_fba_origem.json (gitignored, modelo
-amazon_fba_origem.exemplo.json); a coleta só cai em dia útil (sem fim de semana nem feriado nacional).
+Regras: endereço de origem e contato em amazon_fba_origem.json (gitignored, modelo amazon_fba_origem.exemplo.json); a coleta só
+cai em dia útil (sem fim de semana nem feriado nacional; FERIADOS abaixo, conferir todo ano); SKU de envio = SKU FBA (-FBA) com
+prepOwner NONE e labelOwner SELLER; peso real por caixa, no máximo 22 kg por volume.
 """
 
 import argparse
@@ -459,7 +468,7 @@ def cmd_nf(a):
         if atual.get("status") in ("SUCCESS", "ERROR"):
             break
     if atual.get("status") == "SUCCESS":
-        print(f"NF emitida. Documento fiscal: {atual.get('invoiceExternalDocumentId')}. Próximo: reservar o agendamento e imprimir as etiquetas.")
+        print(f"NF emitida. Documento fiscal: {atual.get('invoiceExternalDocumentId')}. Próximo: conferir a reserva da coleta no Seller Central e imprimir DANFE e etiquetas.")
     else:
         for e in atual.get("invoiceErrors") or []:
             print(f"  erro da NF {e.get('errorCode')}: {e.get('description')}")
