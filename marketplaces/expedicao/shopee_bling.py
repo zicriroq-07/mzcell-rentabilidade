@@ -37,7 +37,7 @@ CAMINHO = os.path.join(BASE_DIR, "shopee_expedicao.json")
 LOJAS_SEG = 3600
 # leitura anterior a no máximo isto: o servidor estava de olho e a hora em que viu o pedido vale como entrada
 CONTINUA_SEG = 15 * 60
-# o Bling demora alguns minutos para importar: pedido visto até esta folga depois do corte ainda conta no dia
+# o Bling demora alguns minutos para importar: a entrada estimada é a hora em que o servidor viu o pedido menos esta folga
 FOLGA_MIN = 15
 _lojas = {"ts": 0.0, "ids": {}}
 _detalhes = {}
@@ -104,13 +104,13 @@ def _entrada_shopee(p: dict):
 
 
 def _meta(canal: str, hoje, plataforma: str = "Shopee", entrada: datetime = None) -> str:
-    """Corte do dia; pedido que entrou depois do corte (com folga) vai para o corte do dia seguinte (domingo pula)."""
+    """Corte do dia; pedido que entrou no corte ou depois vai para o corte do dia seguinte (domingo pula)."""
     hhmm = next((c["corte"] for c in cortes.carregar() if c.get("plataforma") == plataforma and c.get("canal") == canal), "12:00")
     h, m = (int(x) for x in hhmm.split(":"))
     dia = hoje
     if entrada:
         dia = entrada.date()
-        if entrada > datetime(dia.year, dia.month, dia.day, h, m, tzinfo=BRT) + timedelta(minutes=FOLGA_MIN):
+        if entrada >= datetime(dia.year, dia.month, dia.day, h, m, tzinfo=BRT):
             dia += timedelta(days=2 if dia.weekday() == 5 else 1)
         dia = max(dia, hoje)
     return datetime(dia.year, dia.month, dia.day, h, m, tzinfo=BRT).isoformat()
@@ -172,7 +172,7 @@ def linhas(agora: datetime = None) -> tuple:
             erros[f"{conta}_modalidade"] = f"modalidade desconhecida: {det['servico'] or 'vazia'}"
             continue
         candidatas = [_entrada_shopee(p) if conta == "shopee" else None,
-                      datetime.fromisoformat(vistos_em[pid]) if vistos_em.get(pid) else None]
+                      datetime.fromisoformat(vistos_em[pid]) - timedelta(minutes=FOLGA_MIN) if vistos_em.get(pid) else None]
         entrada = max((e for e in candidatas if e), default=None)
         saida.append(_linha(p, det, hoje, conta, entrada))
     novo = {"abertos": sorted(abertos), "feitos": {k: v for k, v in feitos.items() if k in vistos},

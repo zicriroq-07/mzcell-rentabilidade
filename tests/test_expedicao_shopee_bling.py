@@ -119,6 +119,13 @@ class Linhas(unittest.TestCase):
         ls, _ = s.linhas(datetime(2026, 11, 6, 16, 0, tzinfo=BRT))           # 8 horas sem ler
         self.assertEqual([l["meta"][:10] for l in ls], ["2026-11-06", "2026-11-06"])
 
+    def test_xpress_com_corte_as_13h_e_numero_do_dia_seguinte_vai_para_amanha(self):
+        # caso de 11/11: 2611123E8G8WJW, Bling 11/11; criado a partir das 13h, que é o corte do Xpress
+        p = dict(ped(1, 6, data="2026-11-11"), numeroLoja="2611123E8G8WJW")
+        with mock.patch.object(s.cortes, "carregar", lambda: [{"plataforma": "Shopee", "canal": "Shopee Xpress", "corte": "13:00"}]):
+            self.assertEqual(s._meta("Shopee Xpress", datetime(2026, 11, 11).date(), "Shopee", s._entrada_shopee(p)),
+                             "2026-11-12T13:00:00-03:00")
+
     def test_sabado_depois_do_corte_vai_para_segunda(self):
         with mock.patch.object(s.cortes, "carregar", lambda: [{"plataforma": "Shopee", "canal": "Shopee Xpress", "corte": "13:00"}]):
             self.assertEqual(s._meta("Shopee Xpress", datetime(2026, 11, 7).date(), "Shopee",
