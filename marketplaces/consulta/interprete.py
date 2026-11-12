@@ -41,7 +41,7 @@ def extrair(texto: str) -> dict:
         if any(_tem(n, t) for t in termos):
             p["plataforma"] = nome
             break
-    for canal in ("flex", "coleta", "places", "dba"):
+    for canal in ("flex", "full", "coleta", "places", "dba"):
         if _tem(n, canal):
             p["canal"] = canal
             break

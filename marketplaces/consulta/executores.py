@@ -257,6 +257,40 @@ def reclamacao(u, numero=None, conta=None, **_):
     return {"texto": texto, "dados": dados}
 
 
+def envios_atrasados(u, conta=None, canal=None, dias=15, **_):
+    from marketplaces.consulta import atrasos
+    dias = max(1, min(int(dias or 15), 30))
+    contas = [conta] if conta in MELIS else list(MELIS)
+    itens, avisos, idade = [], [], 0
+    for c in contas:
+        lista, seg, estado = atrasos.obter(c, dias)
+        if lista is None:
+            avisos.append(f"  {c}: {'ainda carregando, tente de novo em 1 ou 2 minutos' if estado == 'carregando' else estado}")
+            continue
+        idade = max(idade, seg or 0)
+        itens += lista
+    if canal:
+        alvo = {"flex": "Flex", "full": "Full", "coleta": "Coleta", "places": "Places"}.get(canal.lower(), canal)
+        itens = [x for x in itens if x["canal"] == alvo]
+    itens.sort(key=lambda x: (x["conta"], x["canal"] or "", x["prazo"] or "9", x["pedido"]))
+    texto = [f"{len(itens)} envio(s) em trânsito atrasado(s) no Mercado Livre desde {dias} dias atrás" + "".join(f" ({v})" for v in (conta, canal) if v) +
+             (f" - posição de {idade // 60} min atrás" if idade else "") + "."]
+    por = {}
+    for x in itens:
+        por[(x["conta"], x["canal"])] = por.get((x["conta"], x["canal"]), 0) + 1
+    texto += [f"  {c} {k}: {n}" for (c, k), n in sorted(por.items())]
+    texto += avisos
+    if itens:
+        texto += ["", "Pedido ML             Conta   Canal  Bling            Prazo  Cidade/UF                CEP        Motivo"]
+    for x in itens[:80]:
+        bl = f"{x.get('bling', '')} {x.get('bling_numero') or '-'}"
+        texto.append(f"{x['pedido']:<21} {x['conta']:<7} {str(x['canal']):<6} {bl:<16} {x['prazo'][5:10].replace('-', '/') if x['prazo'] else '-':<6} "
+                     f"{x['cidade'][:24]:<24} {x['cep']:<10} {x['motivo']} [{x['situacao']}]")
+    if len(itens) > 80:
+        texto.append(f"... e mais {len(itens) - 80}")
+    return {"texto": texto, "dados": {"total": len(itens), "envios": itens, "pendentes_de_leitura": avisos}}
+
+
 def ajuda(u, **_):
     from marketplaces.consulta import banco
     from marketplaces.consulta.acesso import pode
@@ -267,4 +301,4 @@ def ajuda(u, **_):
 
 EXECUTORES = {"checkout_abertos": checkout_abertos, "expedicao_resumo": expedicao_resumo, "full_envios": full_envios,
               "cancelamentos": cancelamentos, "pedido": pedido, "estoque": estoque, "sac_resumo": sac_resumo,
-              "reclamacao": reclamacao, "ajuda": ajuda}
+              "reclamacao": reclamacao, "envios_atrasados": envios_atrasados, "ajuda": ajuda}

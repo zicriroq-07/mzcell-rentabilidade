@@ -90,7 +90,7 @@ class RedeInterna(Base):
         self.interno()
         r = self.c.get("/consulta/tela")
         self.assertEqual(r.status_code, 200)
-        self.assertIn("CONSULTA MZ", r.text)
+        self.assertIn("Consulta MZ", r.text)
         self.assertNotIn("claude", r.text.lower())      # o funcionário não vê menção ao Claude
         self.interno(False)
         self.assertEqual(self.c.get("/consulta/tela").status_code, 401)

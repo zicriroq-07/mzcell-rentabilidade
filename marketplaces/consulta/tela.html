@@ -5,109 +5,135 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Consulta MZ</title>
 <style>
-  :root { --fundo: #000; --verde: #33ff66; --verde2: #1f9d3f; --ciano: #4de8ff; --amarelo: #ffd84d; --cinza: #7a7a7a; --vermelho: #ff5c5c; }
+  :root {
+    --bg: #f4f6f9; --card: #ffffff; --borda: #e3e8ef; --texto: #1b2433; --suave: #6b7686; --marca: #0f766e; --marca2: #14b8a6;
+    --acento: #eef7f6; --erro: #b42318; --erro-bg: #fef3f2; --ok-bg: #ecfdf3; --ok: #067647; --aviso-bg: #fffaeb; --aviso: #b54708;
+    --sombra: 0 1px 2px rgba(16,24,40,.06), 0 4px 16px rgba(16,24,40,.06);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #0e1420; --card: #161e2d; --borda: #26324a; --texto: #e7ecf4; --suave: #93a0b5; --marca: #2dd4bf; --marca2: #5eead4;
+            --acento: #12303a; --erro: #fda29b; --erro-bg: #3a1a1a; --ok-bg: #11301f; --ok: #75e0a7; --aviso-bg: #3a2c10; --aviso: #fec84b;
+            --sombra: 0 1px 2px rgba(0,0,0,.4), 0 6px 20px rgba(0,0,0,.3); }
+  }
   * { box-sizing: border-box; }
-  html, body { margin: 0; background: var(--fundo); color: var(--verde); font: 16px/1.35 Consolas, "Lucida Console", "Courier New", monospace; }
-  .tela { max-width: 860px; margin: 0 auto; padding: 16px; }
-  .moldura { border: 3px double var(--verde2); padding: 8px 14px; margin-bottom: 14px; }
-  pre { margin: 0; white-space: pre-wrap; word-break: break-word; font: inherit; }
-  #logo { line-height: 1.05; font-size: clamp(9px, 2.6vw, 20px); text-align: center; overflow: hidden; }
-  #logo span { display: block; white-space: pre; }
-  .titulo { text-align: center; color: #fff; letter-spacing: .35em; margin: 8px 0 2px; }
-  .relogio { text-align: center; color: var(--cinza); font-size: 13px; }
-  .secao { color: var(--amarelo); border-bottom: 1px solid var(--verde2); margin: 0 0 6px; padding-bottom: 4px; }
-  .menu { list-style: none; padding: 0; margin: 0; }
-  .menu button { background: none; border: 0; color: var(--verde); font: inherit; cursor: pointer; text-align: left; width: 100%; padding: 5px 4px; }
-  .menu button:hover, .menu button:focus { background: var(--verde); color: #000; outline: none; }
-  .menu b { display: inline-block; width: 2.2em; color: var(--ciano); }
-  .menu button:hover b, .menu button:focus b { color: #000; }
-  .form { display: none; margin-top: 8px; }
-  .form label { display: block; color: var(--amarelo); margin: 8px 0 3px; }
-  .form input, .form textarea, .form select { width: 100%; background: #031a0a; color: var(--verde); border: 1px solid var(--verde2); font: inherit; padding: 6px 8px; }
-  .form button { margin-top: 10px; background: var(--verde); color: #000; border: 0; font: inherit; font-weight: bold; padding: 7px 16px; cursor: pointer; }
-  #saida { min-height: 120px; max-height: 60vh; overflow: auto; }
-  .erro { color: var(--vermelho); }
-  .rodape { color: var(--cinza); font-size: 12px; text-align: center; }
+  html, body { margin: 0; background: var(--bg); color: var(--texto); font: 15px/1.45 system-ui, "Segoe UI", Roboto, sans-serif; }
+  .pagina { max-width: 1080px; margin: 0 auto; padding: 20px 16px 40px; }
+  header { display: flex; align-items: center; gap: 14px; margin-bottom: 18px; }
+  .marca { width: 46px; height: 46px; border-radius: 12px; display: grid; place-items: center; color: #fff; font-weight: 800; font-size: 19px; letter-spacing: -.5px;
+           background: linear-gradient(135deg, var(--marca), var(--marca2)); box-shadow: var(--sombra); }
+  header h1 { margin: 0; font-size: 21px; letter-spacing: -.2px; }
+  header p { margin: 0; color: var(--suave); font-size: 13px; }
+  .relogio { margin-left: auto; color: var(--suave); font-size: 13px; text-align: right; }
+  .card { background: var(--card); border: 1px solid var(--borda); border-radius: 14px; box-shadow: var(--sombra); }
+  .pergunta { padding: 16px; margin-bottom: 16px; }
+  .pergunta form { display: flex; gap: 10px; }
+  .pergunta input { flex: 1; min-width: 0; font: inherit; padding: 13px 14px; border-radius: 10px; border: 1px solid var(--borda); background: var(--bg); color: var(--texto); }
+  .pergunta input:focus, .campo input:focus, .campo textarea:focus { outline: 2px solid var(--marca2); border-color: transparent; }
+  button { font: inherit; cursor: pointer; }
+  .primario { background: var(--marca); color: #fff; border: 0; border-radius: 10px; padding: 0 20px; font-weight: 600; }
+  .primario:disabled { opacity: .55; cursor: default; }
+  .sugestoes { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+  .chip { background: var(--acento); color: var(--marca); border: 0; border-radius: 999px; padding: 6px 12px; font-size: 13px; }
+  .chip:hover { filter: brightness(.96); }
+  h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--suave); margin: 22px 2px 10px; }
+  .grade { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
+  .atalho { text-align: left; padding: 14px; background: var(--card); border: 1px solid var(--borda); border-radius: 12px; color: var(--texto); box-shadow: var(--sombra); }
+  .atalho:hover { border-color: var(--marca2); }
+  .atalho b { display: block; font-size: 15px; margin-bottom: 2px; }
+  .atalho span { color: var(--suave); font-size: 13px; }
+  .painel { display: none; padding: 16px; margin-top: 14px; }
+  .campo { display: block; margin-bottom: 10px; }
+  .campo label { display: block; font-size: 13px; color: var(--suave); margin-bottom: 4px; }
+  .campo input, .campo textarea { width: 100%; font: inherit; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--borda); background: var(--bg); color: var(--texto); }
+  .linha { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .secundario { background: transparent; color: var(--suave); border: 1px solid var(--borda); border-radius: 10px; padding: 8px 14px; }
+  #resultado { margin-top: 16px; display: none; }
+  #resultado .topo { display: flex; align-items: center; gap: 10px; padding: 14px 16px; border-bottom: 1px solid var(--borda); }
+  #resultado .topo h3 { margin: 0; font-size: 16px; }
+  #resultado .topo .acoes { margin-left: auto; display: flex; gap: 8px; }
+  #resultado .corpo { padding: 16px; }
+  .resumo { white-space: pre-wrap; margin: 0 0 12px; font: inherit; }
+  .erro { color: var(--erro); background: var(--erro-bg); border-radius: 10px; padding: 12px 14px; white-space: pre-wrap; }
+  .espera { color: var(--suave); display: flex; align-items: center; gap: 10px; }
+  .roda { width: 16px; height: 16px; border: 2px solid var(--borda); border-top-color: var(--marca2); border-radius: 50%; animation: gira .8s linear infinite; }
+  @keyframes gira { to { transform: rotate(360deg); } }
+  .tabela { overflow-x: auto; border: 1px solid var(--borda); border-radius: 10px; }
+  table { border-collapse: collapse; width: 100%; font-size: 13.5px; }
+  th { text-align: left; font-weight: 600; color: var(--suave); background: var(--bg); white-space: nowrap; }
+  th, td { padding: 8px 12px; border-bottom: 1px solid var(--borda); }
+  tr:last-child td { border-bottom: 0; }
+  td.num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .etq { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 12px; font-weight: 600; white-space: nowrap; }
+  .etq.vermelho { background: var(--erro-bg); color: var(--erro); } .etq.amarelo { background: var(--aviso-bg); color: var(--aviso); }
+  .rodape { color: var(--suave); font-size: 12px; text-align: center; margin-top: 28px; }
+  @media (max-width: 560px) { .pergunta form { flex-direction: column; } .primario { padding: 12px; } .relogio { display: none; } }
 </style>
 </head>
 <body>
-<div class="tela">
-  <div class="moldura">
-    <div id="logo" aria-label="MZ"></div>
-    <div class="titulo">CONSULTA MZ</div>
+<div class="pagina">
+  <header>
+    <div class="marca">MZ</div>
+    <div><h1>Consulta MZ</h1><p>Pergunte sobre pedidos, envios, estoque e reclamações</p></div>
     <div class="relogio" id="relogio"></div>
+  </header>
+
+  <div class="card pergunta">
+    <form id="formPergunta">
+      <input id="pergunta" autocomplete="off" placeholder="Escreva sua pergunta em português. Ex.: quais envios flex estão atrasados na meli03?" aria-label="Sua pergunta">
+      <button class="primario" id="botaoPerguntar" type="submit">Perguntar</button>
+    </form>
+    <div class="sugestoes" id="sugestoes"></div>
   </div>
 
-  <div class="moldura">
-    <p class="secao">MENU</p>
-    <ul class="menu" id="menu"></ul>
-    <div class="form" id="form">
-      <label id="rotulo" for="campo"></label>
-      <input id="campo" autocomplete="off">
-      <label id="rotulo2" for="campo2" hidden></label>
-      <textarea id="campo2" rows="3" hidden></textarea>
-      <button id="ok">Consultar</button>
-    </div>
+  <h2>Consultas prontas</h2>
+  <div class="grade" id="grade"></div>
+
+  <div class="card painel" id="painelCampo">
+    <div class="campo"><label id="rotulo" for="campo"></label><input id="campo" autocomplete="off"></div>
+    <div class="campo" id="blocoTexto" hidden><label id="rotulo2" for="campo2"></label><textarea id="campo2" rows="3"></textarea></div>
+    <div class="linha"><button class="primario" id="ok" style="padding:10px 20px">Consultar</button><button class="secundario" id="fechar">Cancelar</button></div>
   </div>
 
-  <div class="moldura">
-    <p class="secao" id="tituloSaida">RESULTADO</p>
-    <pre id="saida">Escolha uma opção do menu (clique ou digite o número).</pre>
+  <div class="card" id="resultado">
+    <div class="topo"><h3 id="tituloRes">Resultado</h3>
+      <div class="acoes"><button class="secundario" id="botaoCsv" hidden>Baixar planilha (CSV)</button></div></div>
+    <div class="corpo" id="corpoRes"></div>
   </div>
-  <p class="rodape">MZ App - somente consulta - rede interna</p>
+  <p class="rodape">MZ App · somente consulta · rede interna</p>
 </div>
 
 <script>
 (function () {
-  var ITENS = [
-    { k: "1", t: "Pedidos sem checkout", id: "checkout_abertos", campo: "Plataforma (vazio = todas: shopee, magalu, amazon ou meli)", param: "plataforma", opcional: true },
-    { k: "2", t: "Resumo da Expedição de hoje", id: "expedicao_resumo" },
-    { k: "3", t: "Envios Full / coletas", id: "full_envios" },
-    { k: "4", t: "Cancelados ainda ativos no Bling", id: "cancelamentos" },
-    { k: "5", t: "Consultar um pedido", id: "pedido", campo: "Número do pedido", param: "numero" },
-    { k: "6", t: "Estoque de um SKU", id: "estoque", campo: "SKU (ou o começo dele)", param: "sku" },
-    { k: "7", t: "Reclamação de um pedido", id: "reclamacao", campo: "Número do pedido do Mercado Livre", param: "numero" },
-    { k: "8", t: "Pendências do SAC", id: "sac_resumo" },
-    { k: "9", t: "Pedir uma consulta nova", pedido: true },
-    { k: "P", t: "Perguntar em português", pergunta: true }
+  var PRONTAS = [
+    { t: "Pedidos sem checkout", d: "Por canal, com atrasados", id: "checkout_abertos", campo: "Plataforma (vazio = todas: shopee, magalu, amazon ou meli)", param: "plataforma", opcional: true },
+    { t: "Envios atrasados (Mercado Livre)", d: "Flex, Full e Coleta: cidade, CEP e Bling", id: "envios_atrasados", campo: "Conta (meli01, meli02 ou meli03; vazio = todas)", param: "conta", opcional: true },
+    { t: "Resumo da Expedição de hoje", d: "Pedidos, checkouts e cortes", id: "expedicao_resumo" },
+    { t: "Envios Full e coletas", d: "Montagem, prazo e coleta", id: "full_envios" },
+    { t: "Cancelados ainda ativos no Bling", d: "Cancelou no ML e segue no Bling", id: "cancelamentos" },
+    { t: "Consultar um pedido", d: "Situação no Bling pelo número", id: "pedido", campo: "Número do pedido", param: "numero" },
+    { t: "Estoque de um SKU", d: "Saldo nos três Blings", id: "estoque", campo: "SKU (ou o começo dele)", param: "sku" },
+    { t: "Reclamação de um pedido", d: "Mercado Livre, com mensagens", id: "reclamacao", campo: "Número do pedido do Mercado Livre", param: "numero" },
+    { t: "Pendências do SAC", d: "Perguntas, mensagens e reclamações", id: "sac_resumo" },
+    { t: "Pedir uma consulta nova", d: "A equipe cadastra para você", pedido: true }
   ];
-  var logo = document.getElementById("logo"), menu = document.getElementById("menu"), form = document.getElementById("form");
-  var campo = document.getElementById("campo"), campo2 = document.getElementById("campo2");
-  var rotulo = document.getElementById("rotulo"), rotulo2 = document.getElementById("rotulo2");
-  var saida = document.getElementById("saida"), tituloSaida = document.getElementById("tituloSaida"), atual = null;
-
-  // logo MZ em blocos
-  var M = ["##     ##", "###   ###", "#### ####", "## ### ##", "##  #  ##", "##     ##", "##     ##"];
-  var Z = ["#########", "      ###", "     ### ", "    ###  ", "   ###   ", "  ###    ", "#########"];
-  var cores = ["#4de8ff", "#4de8ff", "#33ff66", "#33ff66", "#1f9d3f", "#1f9d3f", "#7a7a7a"];
-  M.forEach(function (l, i) {
-    var s = document.createElement("span");
-    s.style.color = cores[i];
-    s.textContent = (l + "   " + Z[i]).split("").map(function (c) { return c === "#" ? "██" : "  "; }).join("");
-    logo.appendChild(s);
-  });
+  var SUGESTOES = ["quantos checkouts tenho em aberto?", "envios flex atrasados na meli03", "resumo da expedição de hoje", "quais envios full estão em montagem?"];
+  var $ = function (id) { return document.getElementById(id); };
+  var atual = null, ultimaTabela = null, pendente = null, ciclo = 0;
 
   function relogio() {
     var d = new Date(), p = function (n) { return ("0" + n).slice(-2); };
-    document.getElementById("relogio").textContent = p(d.getDate()) + "/" + p(d.getMonth() + 1) + "/" + d.getFullYear() + " " + p(d.getHours()) + ":" + p(d.getMinutes());
+    $("relogio").textContent = p(d.getDate()) + "/" + p(d.getMonth() + 1) + "/" + d.getFullYear() + " · " + p(d.getHours()) + ":" + p(d.getMinutes());
   }
   relogio(); setInterval(relogio, 30000);
 
-  function mostrar(titulo, linhas, erro) {
-    tituloSaida.textContent = titulo;
-    saida.textContent = Array.isArray(linhas) ? linhas.join("\n") : String(linhas);
-    saida.className = erro ? "erro" : "";
-    saida.scrollTop = 0;
-  }
-
-  // uma consulta por vez: pedir outra cancela a que ficou pendente, e nenhuma fica esperando mais de 2 minutos
-  var pendente = null, ciclo = 0;
+  // uma consulta por vez: pedir outra cancela a que ficou pendente; nenhuma espera mais de 2 minutos
   function chamar(url, opcoes) {
     if (pendente) pendente.abort();
     var ctl = new AbortController(), meu = ++ciclo;
     pendente = ctl;
     var tempo = setTimeout(function () { ctl.abort(); }, 120000);
     opcoes = Object.assign({}, opcoes, { signal: ctl.signal });
+    var fim = function () { clearTimeout(tempo); if (pendente === ctl) pendente = null; };
     return fetch(url, opcoes).then(function (r) {
       return r.text().then(function (txt) {
         var j; try { j = JSON.parse(txt); } catch (e) { j = null; }
@@ -117,68 +143,152 @@
     }).catch(function (e) {
       if (e && e.name === "AbortError") throw new Error(meu === ciclo ? "demorou demais: tente de novo" : "cancelada");
       throw e;
-    }).then(function (j) { clearTimeout(tempo); if (pendente === ctl) pendente = null; return j; },
-            function (e) { clearTimeout(tempo); if (pendente === ctl) pendente = null; throw e; });
+    }).then(function (j) { fim(); return j; }, function (e) { fim(); throw e; });
   }
 
-  function consultar(titulo, url, opcoes) {
-    mostrar(titulo, "Consultando...");
-    chamar(url, opcoes).then(function (j) { mostrar(titulo, j.texto || ["(sem resposta)"]); pronto(); })
-      .catch(function (e) { if (e.message !== "cancelada") { mostrar(titulo, ["Não foi possível consultar:", "  " + e.message], true); pronto(); } });
+  function limpar(no) { while (no.firstChild) no.removeChild(no.firstChild); }
+  function el(tag, cls, txt) { var e = document.createElement(tag); if (cls) e.className = cls; if (txt != null) e.textContent = txt; return e; }
+  function hora(iso) {
+    var m = /^(\d{4})-(\d\d)-(\d\d)T(\d\d):(\d\d)/.exec(iso || "");
+    return m ? m[3] + "/" + m[2] + " " + m[4] + ":" + m[5] : (iso || "-");
+  }
+  function dia(iso) { var m = /^(\d{4})-(\d\d)-(\d\d)/.exec(iso || ""); return m ? m[3] + "/" + m[2] : "-"; }
+
+  function aberto(titulo) {
+    $("resultado").style.display = "block"; $("tituloRes").textContent = titulo; $("botaoCsv").hidden = true; ultimaTabela = null;
+    $("resultado").scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }
+  function espera(titulo, msg) {
+    aberto(titulo);
+    var c = $("corpoRes"); limpar(c);
+    var e = el("div", "espera"); e.appendChild(el("span", "roda")); e.appendChild(el("span", null, msg)); c.appendChild(e);
+  }
+  function erro(titulo, msg) { aberto(titulo); var c = $("corpoRes"); limpar(c); c.appendChild(el("div", "erro", msg)); }
+
+  // colunas das listas que vêm com dados completos: [título, valor, etiqueta opcional [texto|"" , cor]]
+  var TABELAS = {
+    checkout_abertos: { lista: function (d) { return d && d.pedidos; }, cols: function (l) {
+      var com = l.some(function (x) { return x.cidade; });
+      var c = [["Pedido", function (x) { return String(x.pedido || x.envio || ""); }], ["Canal", function (x) { return x.canal; }], ["Conta", function (x) { return x.conta; }],
+               ["Bling", function (x) { return (x.conta_bling || "") + " " + (x.bling_numero || "-"); }]];
+      if (com) c.push(["Cidade/UF", function (x) { return x.cidade || "-"; }], ["CEP", function (x) { return x.cep || "-"; }]);
+      c.push(["Corte", function (x) { return hora(x.meta); }],
+             ["Situação", function (x) { return (x.herdado ? "(dia anterior) " : "") + (x.bling_situacao || x.situacao || ""); }, function (x) { return x.atrasado ? ["ATRASADO", "vermelho"] : null; }]);
+      return c; } },
+    envios_atrasados: { lista: function (d) { return d && d.envios; }, cols: function () {
+      return [["Pedido ML", function (x) { return String(x.pedido); }], ["Conta", function (x) { return x.conta; }], ["Canal", function (x) { return x.canal; }],
+              ["Bling", function (x) { return (x.bling || "") + " " + (x.bling_numero || "-"); }], ["Prazo", function (x) { return dia(x.prazo); }],
+              ["Cidade/UF", function (x) { return x.cidade; }], ["CEP", function (x) { return x.cep; }],
+              ["Motivo", function (x) { return x.motivo; }, function (x) { return /transportadora/.test(x.motivo) ? ["", "vermelho"] : /previs/.test(x.motivo) ? ["", "amarelo"] : null; }],
+              ["Situação", function (x) { return x.situacao; }]]; } }
+  };
+
+  function tabela(def, lista) {
+    var cols = def.cols(lista), box = el("div", "tabela"), t = el("table"), cab = el("tr");
+    cols.forEach(function (c) { cab.appendChild(el("th", null, c[0])); });
+    t.appendChild(el("thead")).appendChild(cab);
+    var corpo = el("tbody"), csv = [cols.map(function (c) { return c[0]; })];
+    lista.slice(0, 500).forEach(function (x) {
+      var tr = el("tr"), linha = [];
+      cols.forEach(function (c) {
+        var td = el("td"), v = c[1](x) || "-", marca = c[2] ? c[2](x) : null;
+        linha.push(v);
+        if (marca && marca[0]) { td.appendChild(el("span", "etq " + marca[1], marca[0])); td.appendChild(document.createTextNode(" " + v)); }
+        else if (marca) { td.appendChild(el("span", "etq " + marca[1], v)); }
+        else { td.textContent = v; }
+        if (/^[\d\s\/:.-]+$/.test(v)) td.className = "num";
+        tr.appendChild(td);
+      });
+      csv.push(linha); corpo.appendChild(tr);
+    });
+    t.appendChild(corpo); box.appendChild(t);
+    ultimaTabela = csv;
+    return box;
   }
 
-  // depois de cada resposta o campo volta limpo e focado, para a próxima consulta
-  function pronto() {
-    if (form.style.display === "block" && !(atual && atual.pedido)) { campo.value = ""; campo.focus(); }
+  function resposta(titulo, j) {
+    aberto(titulo);
+    var c = $("corpoRes"); limpar(c);
+    var linhas = j.texto || ["(sem resposta)"], def = TABELAS[j.consulta], lista = def && def.lista(j.dados);
+    if (def && lista && lista.length) {
+      var corte = linhas.indexOf("");
+      c.appendChild(el("pre", "resumo", (corte > 0 ? linhas.slice(0, corte) : linhas.slice(0, 1)).join("\n")));
+      c.appendChild(tabela(def, lista));
+      if (lista.length > 500) c.appendChild(el("p", "rodape", "Mostrando 500 de " + lista.length + "."));
+      $("botaoCsv").hidden = false;
+    } else {
+      c.appendChild(el("pre", "resumo", linhas.join("\n")));
+    }
   }
+
+  function consultar(titulo, url, opcoes, msg) {
+    espera(titulo, msg || "Consultando...");
+    chamar(url, opcoes).then(function (j) { resposta(titulo, j); pronto(); })
+      .catch(function (e) { if (e.message !== "cancelada") erro(titulo, "Não foi possível consultar:\n" + e.message); });
+  }
+
+  function perguntar(texto) {
+    espera("Resposta", "Consultando...");
+    $("botaoPerguntar").disabled = true;
+    var livre = function () { $("botaoPerguntar").disabled = false; };
+    // primeiro as consultas cadastradas (rápido); se não entender, a pergunta livre (alguns segundos)
+    chamar("/consulta/perguntar?texto=" + encodeURIComponent(texto)).then(function (j) {
+      if (j.entendi) { resposta("Resposta", j); return; }
+      espera("Resposta", "Pensando... pode levar alguns segundos.");
+      return chamar("/consulta/livre?texto=" + encodeURIComponent(texto)).then(function (l) { resposta("Resposta", l); });
+    }).catch(function (e) { if (e.message !== "cancelada") erro("Resposta", "Não foi possível responder:\n" + e.message); })
+      .then(livre, livre);
+  }
+
+  function pronto() { if ($("painelCampo").style.display === "block" && atual && !atual.pedido) { $("campo").value = ""; $("campo").focus(); } }
 
   function escolher(item) {
     atual = item;
-    form.style.display = "none";
-    if (item.id && !item.campo) { consultar(item.t.toUpperCase(), "/consulta/executar/" + item.id); return; }
-    form.style.display = "block";
-    rotulo.textContent = item.campo || (item.pedido ? "Seu nome" : "Sua pergunta");
-    campo.value = ""; campo2.value = "";
-    var dois = !!item.pedido;
-    campo2.hidden = rotulo2.hidden = !dois;
-    if (dois) rotulo2.textContent = "Descreva a consulta que você precisa (o que quer saber, de qual pedido, SKU ou plataforma)";
-    document.getElementById("ok").textContent = item.pedido ? "Enviar pedido" : "Consultar";
-    campo.focus();
+    var painel = $("painelCampo");
+    if (item.id && !item.campo) { painel.style.display = "none"; consultar(item.t, "/consulta/executar/" + item.id); return; }
+    painel.style.display = "block";
+    $("rotulo").textContent = item.campo || "Seu nome";
+    $("campo").value = ""; $("campo2").value = "";
+    $("blocoTexto").hidden = !item.pedido;
+    if (item.pedido) $("rotulo2").textContent = "Descreva a consulta que você precisa (o que quer saber, de qual pedido, SKU ou plataforma)";
+    $("ok").textContent = item.pedido ? "Enviar pedido" : "Consultar";
+    $("campo").focus();
   }
 
   function enviar() {
     if (!atual) return;
-    var v = campo.value.trim(), t = atual.t.toUpperCase();
+    var v = $("campo").value.trim();
     if (atual.pedido) {
-      if (campo2.value.trim().length < 10) { mostrar("PEDIDO DE CONSULTA", ["Descreva melhor o que você precisa (mínimo 10 letras)."], true); return; }
-      consultar("PEDIDO DE CONSULTA", "/consulta/solicitar", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ nome: v, texto: campo2.value.trim() }) });
-    } else if (atual.pergunta) {
-      if (!v) return;
-      mostrar("RESPOSTA", "Consultando...");
-      // primeiro as consultas cadastradas (instantâneo); se não entender, tenta a pergunta livre (alguns segundos)
-      chamar("/consulta/perguntar?texto=" + encodeURIComponent(v)).then(function (j) {
-        if (j.entendi) { mostrar("RESPOSTA", j.texto); pronto(); return; }
-        mostrar("RESPOSTA", "Pensando... pode levar alguns segundos.");
-        return chamar("/consulta/livre?texto=" + encodeURIComponent(v)).then(function (l) { mostrar("RESPOSTA", l.texto); pronto(); });
-      }).catch(function (e) { if (e.message !== "cancelada") { mostrar("RESPOSTA", ["Não foi possível responder:", "  " + e.message], true); pronto(); } });
+      if ($("campo2").value.trim().length < 10) { erro("Pedido de consulta", "Descreva melhor o que você precisa (mínimo 10 letras)."); return; }
+      consultar("Pedido de consulta", "/consulta/solicitar", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ nome: v, texto: $("campo2").value.trim() }) });
     } else if (v || atual.opcional) {
-      var q = v ? "?" + atual.param + "=" + encodeURIComponent(atual.param === "plataforma" ? v.toLowerCase() : v) : "";
-      consultar(t + (v ? " " + v.toUpperCase() : ""), "/consulta/executar/" + atual.id + q);
+      var q = v ? "?" + atual.param + "=" + encodeURIComponent(/plataforma|conta/.test(atual.param) ? v.toLowerCase() : v) : "";
+      consultar(atual.t + (v ? " · " + v.toUpperCase() : ""), "/consulta/executar/" + atual.id + q,
+                null, atual.id === "envios_atrasados" ? "Consultando o Mercado Livre... a primeira vez do dia pode levar até 1 minuto e meio." : "");
     }
   }
 
-  ITENS.forEach(function (item) {
-    var li = document.createElement("li"), b = document.createElement("button"), k = document.createElement("b");
-    k.textContent = item.k; b.appendChild(k); b.appendChild(document.createTextNode(item.t));
+  PRONTAS.forEach(function (item) {
+    var b = el("button", "atalho"); b.type = "button";
+    b.appendChild(el("b", null, item.t)); b.appendChild(el("span", null, item.d));
     b.addEventListener("click", function () { escolher(item); });
-    li.appendChild(b); menu.appendChild(li);
+    $("grade").appendChild(b);
   });
-  document.getElementById("ok").addEventListener("click", enviar);
-  campo.addEventListener("keydown", function (e) { if (e.key === "Enter" && !(atual && atual.pedido)) enviar(); });
-  document.addEventListener("keydown", function (e) {
-    if (e.target && /INPUT|TEXTAREA/.test(e.target.tagName)) return;
-    var item = ITENS.filter(function (i) { return i.k === e.key.toUpperCase(); })[0];
-    if (item) escolher(item);
+  SUGESTOES.forEach(function (s) {
+    var b = el("button", "chip", s); b.type = "button";
+    b.addEventListener("click", function () { $("pergunta").value = s; perguntar(s); });
+    $("sugestoes").appendChild(b);
+  });
+  $("formPergunta").addEventListener("submit", function (e) { e.preventDefault(); var v = $("pergunta").value.trim(); if (v) perguntar(v); });
+  $("ok").addEventListener("click", enviar);
+  $("fechar").addEventListener("click", function () { $("painelCampo").style.display = "none"; });
+  $("campo").addEventListener("keydown", function (e) { if (e.key === "Enter" && !(atual && atual.pedido)) enviar(); });
+  $("botaoCsv").addEventListener("click", function () {
+    if (!ultimaTabela) return;
+    var txt = ultimaTabela.map(function (l) { return l.map(function (c) { return '"' + String(c).replace(/"/g, '""') + '"'; }).join(";"); }).join("\r\n");
+    var a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob(["﻿" + txt], { type: "text/csv;charset=utf-8" }));
+    a.download = "consulta-mz.csv"; a.click();
   });
 })();
 </script>
