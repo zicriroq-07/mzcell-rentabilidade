@@ -1,9 +1,10 @@
-CONSULTA MZ
+﻿CONSULTA MZ
 
 Como usar
 1. Extraia esta pasta no computador (por exemplo, C:\ConsultaMZ).
 2. Dê duplo clique em Consulta-MZ.bat.
-3. Digite sua pergunta em português e aperte Enter.
+3. Digite o número da opção do menu (1 a 8) e aperte Enter. Algumas pedem um dado, como o número do pedido ou o SKU.
+   Para escrever uma pergunta livre em português, escolha P.
 
 Exemplos
   quantos checkouts tenho em aberto?
@@ -13,7 +14,7 @@ Exemplos
   quais envios full estão em montagem?
   qual a reclamação do pedido 2000012345678901?
 
-Digite "ajuda" para ver tudo que dá para consultar e "sair" para fechar.
+Escolha S para sair.
 
 Só funciona dentro da rede da empresa e só consulta: não altera nada.
 Se aparecer erro de servidor, confira se o PC servidor está ligado.
