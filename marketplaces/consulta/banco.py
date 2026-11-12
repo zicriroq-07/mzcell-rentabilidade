@@ -27,6 +27,8 @@ def _con():
         CREATE TABLE IF NOT EXISTS uso (id INTEGER PRIMARY KEY AUTOINCREMENT, ts TEXT, login TEXT, origem TEXT, consulta TEXT,
                                         params TEXT, texto TEXT, status INTEGER, ms INTEGER);
         CREATE TABLE IF NOT EXISTS sem_resposta (id INTEGER PRIMARY KEY AUTOINCREMENT, ts TEXT, login TEXT, texto TEXT);
+        CREATE TABLE IF NOT EXISTS solicitacoes (id INTEGER PRIMARY KEY AUTOINCREMENT, ts TEXT, login TEXT, origem TEXT, nome TEXT,
+                                                 texto TEXT, status TEXT DEFAULT 'aberta');
     """)
     return con
 
@@ -89,6 +91,34 @@ def registrar_sem_resposta(login, texto):
         pass
 
 
+LIMITE_SOLICITACOES_HORA = 10
+
+
+def solicitar(login: str, origem: str, nome: str, texto: str) -> int:
+    """Pedido de consulta nova feito pela tela. Devolve o número do pedido; levanta ValueError se passar do limite por hora."""
+    desde = (datetime.now(BRT) - timedelta(hours=1)).isoformat(timespec="seconds")
+    with _trava:
+        con = _con()
+        try:
+            if con.execute("SELECT COUNT(*) FROM solicitacoes WHERE origem=? AND ts>=?", (origem, desde)).fetchone()[0] >= LIMITE_SOLICITACOES_HORA:
+                raise ValueError("muitos pedidos seguidos deste computador: tente de novo daqui a pouco")
+            cur = con.execute("INSERT INTO solicitacoes (ts, login, origem, nome, texto) VALUES (?,?,?,?,?)",
+                              (agora(), login, str(origem)[:60], str(nome)[:60], str(texto)[:500]))
+            con.commit()
+            return cur.lastrowid
+        finally:
+            con.close()
+
+
+def solicitacoes(status: str = "aberta") -> list:
+    with _trava:
+        con = _con()
+        try:
+            return [dict(r) for r in con.execute("SELECT id, ts, nome, login, origem, texto, status FROM solicitacoes WHERE status=? ORDER BY id DESC LIMIT 100", (status,))]
+        finally:
+            con.close()
+
+
 def estatisticas(dias: int = 30) -> dict:
     desde = (datetime.now(BRT) - timedelta(days=dias)).isoformat(timespec="seconds")
     with _trava:
@@ -100,4 +130,4 @@ def estatisticas(dias: int = 30) -> dict:
                                                 "GROUP BY texto ORDER BY vezes DESC LIMIT 30", (desde,))]
         finally:
             con.close()
-    return {"dias": dias, "mais_usadas": top, "sem_resposta": sem}
+    return {"dias": dias, "mais_usadas": top, "sem_resposta": sem, "solicitacoes_abertas": solicitacoes()}

@@ -89,7 +89,7 @@ function Cabecalho-Tela($sub) {
 function Menu-Tela {
     Cabecalho-Tela "MENU PRINCIPAL"
     foreach ($i in @("1  Pedidos sem checkout", "2  Resumo da Expedição de hoje", "3  Envios Full / coletas", "4  Cancelados ainda ativos no Bling",
-                     "5  Consultar um pedido", "6  Estoque de um SKU", "7  Reclamação de um pedido", "8  Pendências do SAC", "",
+                     "5  Consultar um pedido", "6  Estoque de um SKU", "7  Reclamação de um pedido", "8  Pendências do SAC", "9  Pedir uma consulta nova", "A  Consulta avançada (pede login)", "",
                      "P  Perguntar em português", "S  Sair")) { Caixa-Linha ("   " + $i) }
     Caixa-Meio; Caixa-Linha "MZ App  -  somente consulta  -  rede interna" "DarkGray"; Caixa-Base
 }
@@ -110,6 +110,81 @@ function Executar-Tela($id, $titulo, $parametros = @{}) {
     } catch { Resultado $titulo @("Não foi possível consultar:", "  $_") }
 }
 function Pedir($rotulo) { return (Read-Host $rotulo).Trim() }
+function Enviar($Caminho, $Corpo) {
+    $bytes = [Text.Encoding]::UTF8.GetBytes(($Corpo | ConvertTo-Json))
+    try {
+        $r = Invoke-WebRequest -Uri "$Servidor$Caminho" -Method Post -Body $bytes -ContentType "application/json; charset=utf-8" -Headers (Cabecalho) -TimeoutSec 60 -UseBasicParsing
+        [Text.Encoding]::UTF8.GetString($r.RawContentStream.ToArray()) | ConvertFrom-Json
+    } catch {
+        $msg = $_.ErrorDetails.Message
+        if ($msg) { try { $msg = ($msg | ConvertFrom-Json).detail } catch {} ; throw $msg }
+        throw
+    }
+}
+function Parse-Params($texto) {
+    $h = @{}
+    foreach ($par in ($texto -split "[\s&]+")) { if ($par -match "^([^=]+)=(.*)$") { $h[$Matches[1]] = $Matches[2] } }
+    return $h
+}
+function Entrar-Tela {
+    Cabecalho-Tela "LOGIN DO MZ APP (acesso total)"
+    $login = Pedir "Usuário"
+    $senha = Read-Host "Senha" -AsSecureString
+    $plano = [Runtime.InteropServices.Marshal]::PtrToStringBSTR([Runtime.InteropServices.Marshal]::SecureStringToBSTR($senha))
+    try {
+        $r = Invoke-RestMethod -Method Post -Uri "$Servidor/consulta/login" -ContentType "application/json; charset=utf-8" `
+            -Body ([Text.Encoding]::UTF8.GetBytes((@{ login = $login; senha = $plano } | ConvertTo-Json)))
+        Set-Content -Path $ArqToken -Value $r.token -Encoding ascii
+        return $true
+    } catch {
+        $m = $_.ErrorDetails.Message; if ($m) { try { $m = ($m | ConvertFrom-Json).detail } catch {} }
+        Resultado "LOGIN" @("Não foi possível entrar:", "  $m")
+        return $false
+    } finally { $plano = $null }
+}
+function Json-Tela($titulo, $caminho, $params) {
+    try {
+        $r = Chamar $caminho $params
+        Resultado $titulo (@(($r | ConvertTo-Json -Depth 8) -split "`r?`n") | Select-Object -First 400)
+    } catch { Resultado $titulo @("Não foi possível consultar:", "  $_") }
+}
+function Estat-Tela {
+    try {
+        $e = Chamar "/consulta/estatisticas"
+        $l = @("PEDIDOS DE CONSULTA NOVA (abertos):")
+        $l += @($e.solicitacoes_abertas | ForEach-Object { "  #$($_.id) $($_.ts.Substring(5,5)) $($_.nome) [$($_.origem)]: $($_.texto)" })
+        $l += "", "MAIS USADAS (30 dias):"
+        $l += @($e.mais_usadas | ForEach-Object { "  $($_.consulta): $($_.vezes) vezes ($($_.erros) com erro)" })
+        $l += "", "PERGUNTAS QUE O SISTEMA NÃO ENTENDEU:"
+        $l += @($e.sem_resposta | ForEach-Object { "  $($_.vezes)x  $($_.texto)" })
+        Resultado "USO E PEDIDOS" $l
+    } catch { Resultado "USO E PEDIDOS" @("Não foi possível consultar:", "  $_") }
+}
+function Avancada-Tela {
+    if (-not (Test-Path $ArqToken)) { if (-not (Entrar-Tela)) { return } }
+    while ($true) {
+        Cabecalho-Tela "CONSULTA AVANÇADA (leitura direta, acesso total)"
+        foreach ($i in @("1  Ler o Bling", "2  Ler o Mercado Livre", "3  Pedidos de consulta nova e uso", "", "S  Voltar ao menu")) { Caixa-Linha ("   " + $i) }
+        Caixa-Base
+        $o = (Read-Host "`nOpção").Trim().ToUpper()
+        switch ($o) {
+            "1" {
+                $c = Pedir "Conta (bling01, bling02 ou bling03)"
+                $r = Pedir "Recurso (ex.: pedidos/vendas, produtos, estoques/saldos, nfe)"
+                $q = Pedir "Filtros (ex.: numero=12345 limite=10; Enter = nenhum)"
+                if ($c -and $r) { Json-Tela "BLING $c/$r" "/consulta/bling/$c/$r" (Parse-Params $q) }
+            }
+            "2" {
+                $c = Pedir "Conta (meli01, meli02 ou meli03)"
+                $r = Pedir "Recurso (ex.: orders/2000012345678901, shipments/123, items/MLB123)"
+                $q = Pedir "Filtros (ex.: limit=10; Enter = nenhum)"
+                if ($c -and $r) { Json-Tela "MERCADO LIVRE $c/$r" "/consulta/ml/$c/$r" (Parse-Params $q) }
+            }
+            "3" { Estat-Tela }
+            { $_ -in "S", "0", "SAIR" } { return }
+        }
+    }
+}
 function Tela-Principal {
     [Console]::InputEncoding = [Text.Encoding]::UTF8
     $Host.UI.RawUI.WindowTitle = "Consulta MZ"
@@ -127,6 +202,12 @@ function Tela-Principal {
             "6" { $s = Pedir "SKU (ou o começo dele)"; if ($s) { Executar-Tela "estoque" "ESTOQUE $($s.ToUpper())" @{ sku = $s } } }
             "7" { $n = Pedir "Número do pedido do Mercado Livre"; if ($n) { Executar-Tela "reclamacao" "RECLAMAÇÃO DO PEDIDO $n" @{ numero = $n } } }
             "8" { Executar-Tela "sac_resumo" "PENDÊNCIAS DO SAC" }
+            "9" {
+                $n = Pedir "Seu nome"
+                $t = Pedir "Descreva a consulta que você precisa (o que quer saber, de qual pedido, SKU ou plataforma)"
+                if ($t) { try { $r = Enviar "/consulta/solicitar" @{ nome = $n; texto = $t }; Resultado "PEDIDO DE CONSULTA" $r.texto } catch { Resultado "PEDIDO DE CONSULTA" @("Não consegui registrar:", "  $_") } }
+            }
+            "A" { Avancada-Tela }
             "P" {
                 $t = Pedir "Sua pergunta"
                 if ($t) { try { $r = Chamar "/consulta/perguntar" @{ texto = $t }; Resultado "RESPOSTA" $r.texto } catch { Resultado "RESPOSTA" @("Não consegui responder:", "  $_") } }

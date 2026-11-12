@@ -9,8 +9,9 @@ GET  /consulta/perguntar?texto=...   entende a pergunta pelo banco de consultas 
 GET  /consulta/executar/{id}  executa uma consulta do catálogo com parâmetros na URL
 GET  /consulta/bling/{conta}/{recurso}   leitura direta do Bling (lista de recursos permitidos abaixo)
 GET  /consulta/ml/{conta}/{recurso}      leitura direta do Mercado Livre (idem)
-GET  /consulta/estatisticas   mais usadas e perguntas sem resposta (só quem tem acesso a todos os módulos)
-Só GET (e o login): nenhuma rota daqui grava no Bling, no ML ou nos arquivos do app. Cada uso fica no banco.
+POST /consulta/solicitar      pedido de consulta nova (grava só em consulta.db)
+GET  /consulta/estatisticas   mais usadas, perguntas sem resposta e pedidos de consulta (só quem tem acesso a todos os módulos)
+Só GET, o login e o pedido de consulta: nenhuma rota daqui grava no Bling, no ML ou nos arquivos do app. Cada uso fica no banco.
 """
 
 import time
@@ -129,6 +130,20 @@ def ml_leitura(conta: str, recurso: str, request: Request, u: dict = Depends(ace
     if st != 200:
         raise HTTPException(status_code=st if st in (400, 404, 429) else 502, detail=f"Mercado Livre respondeu {st}: {str(r)[:200]}")
     return r
+
+
+@router.post("/solicitar")
+def solicitar(payload: dict, u: dict = Depends(acesso.usuario_atual)):
+    """Pedido de consulta nova: só grava no banco da consulta (consulta.db), nada do app. Aparece nas estatísticas."""
+    texto = str(payload.get("texto") or "").strip()
+    nome = str(payload.get("nome") or "").strip()
+    if len(texto) < 10:
+        raise HTTPException(status_code=400, detail="descreva melhor o que você precisa consultar (mínimo 10 letras)")
+    try:
+        numero = banco.solicitar(u["login"], u["origem"], nome, texto)
+    except ValueError as e:
+        raise HTTPException(status_code=429, detail=str(e))
+    return {"numero": numero, "texto": [f"Pedido nº {numero} registrado. A equipe de sistemas vai avaliar e cadastrar a consulta."]}
 
 
 @router.get("/estatisticas")

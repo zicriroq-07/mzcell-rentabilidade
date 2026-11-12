@@ -129,12 +129,28 @@ class Permissoes(Base):
 
     def test_so_ha_leitura_alem_do_login(self):
         metodos = {(m, r.path) for r in rt.router.routes for m in r.methods}
-        self.assertEqual({p for m, p in metodos if m not in ("GET", "HEAD")}, {"/consulta/login"})
+        # além do login, só o pedido de consulta nova, que grava apenas em consulta.db
+        self.assertEqual({p for m, p in metodos if m not in ("GET", "HEAD")}, {"/consulta/login", "/consulta/solicitar"})
+
+    def test_pedido_de_consulta_nova(self):
+        h = self.entrar("exp")
+        r = self.c.post("/consulta/solicitar", json={"nome": "Roger", "texto": "saber quantas etiquetas faltam imprimir"}, headers=h)
+        self.assertEqual(r.status_code, 200)
+        est = banco.estatisticas()["solicitacoes_abertas"]
+        self.assertEqual((est[0]["nome"], est[0]["login"], est[0]["id"]), ("Roger", "exp", r.json()["numero"]))
+        self.assertEqual(self.c.post("/consulta/solicitar", json={"nome": "R", "texto": "curto"}, headers=h).status_code, 400)
 
     def test_estatisticas_so_para_quem_tem_todos(self):
         self.assertEqual(self.c.get("/consulta/estatisticas", headers=self.entrar("exp")).status_code, 403)
-        self.assertEqual(self.c.get("/consulta/estatisticas", headers=self.entrar("chefe")).status_code, 200)
+        r = self.c.get("/consulta/estatisticas", headers=self.entrar("chefe"))
+        self.assertEqual(r.status_code, 200)
+        self.assertIn("solicitacoes_abertas", r.json())
 
+    def test_pedido_de_consulta_tem_limite_por_hora(self):
+        h = self.entrar("exp")
+        for _ in range(banco.LIMITE_SOLICITACOES_HORA):
+            self.assertEqual(self.c.post("/consulta/solicitar", json={"texto": "uma consulta qualquer aqui"}, headers=h).status_code, 200)
+        self.assertEqual(self.c.post("/consulta/solicitar", json={"texto": "mais uma consulta aqui"}, headers=h).status_code, 429)
 
 class Interprete(Base):
     def p(self, texto):
