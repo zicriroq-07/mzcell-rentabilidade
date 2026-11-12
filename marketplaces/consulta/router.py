@@ -14,9 +14,11 @@ GET  /consulta/estatisticas   mais usadas, perguntas sem resposta e pedidos de c
 Só GET, o login e o pedido de consulta: nenhuma rota daqui grava no Bling, no ML ou nos arquivos do app. Cada uso fica no banco.
 """
 
+import os
 import time
 
 from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.responses import HTMLResponse
 
 from marketplaces.consulta import acesso, banco, interprete
 from marketplaces.consulta.catalogo import CATALOGO
@@ -56,6 +58,13 @@ def _rodar(u: dict, consulta_id: str, params: dict, texto: str = ""):
     finally:
         banco.registrar_uso(u["login"], u["origem"], consulta_id, params, texto, status, int((time.time() - inicio) * 1000))
     return dict(res, consulta=consulta_id, titulo=c["titulo"], parametros=params)
+
+
+@router.get("/tela", response_class=HTMLResponse)
+def tela(u: dict = Depends(acesso.usuario_atual)):
+    """A mesma tela retrô do terminal, no navegador (rede interna). Chama as rotas desta página, com o mesmo acesso."""
+    with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "tela.html"), encoding="utf-8") as f:
+        return HTMLResponse(f.read(), headers={"Cache-Control": "no-store"})
 
 
 @router.get("/consultas")

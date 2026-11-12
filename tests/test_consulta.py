@@ -86,6 +86,15 @@ class RedeInterna(Base):
         self.assertEqual(self.c.get("/consulta/ml/meli01/orders/1").status_code, 401)
         self.assertEqual(self.c.get("/consulta/estatisticas").status_code, 401)
 
+    def test_tela_no_navegador_so_na_rede_interna(self):
+        self.interno()
+        r = self.c.get("/consulta/tela")
+        self.assertEqual(r.status_code, 200)
+        self.assertIn("CONSULTA MZ", r.text)
+        self.assertNotIn("claude", r.text.lower())      # o funcionário não vê menção ao Claude
+        self.interno(False)
+        self.assertEqual(self.c.get("/consulta/tela").status_code, 401)
+
     def test_token_invalido_nao_vira_anonimo(self):
         self.interno()
         self.assertEqual(self.c.get("/consulta/consultas", headers={"Authorization": "Bearer lixo"}).status_code, 401)

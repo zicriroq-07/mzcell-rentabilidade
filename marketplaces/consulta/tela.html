@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Consulta MZ</title>
+<style>
+  :root { --fundo: #000; --verde: #33ff66; --verde2: #1f9d3f; --ciano: #4de8ff; --amarelo: #ffd84d; --cinza: #7a7a7a; --vermelho: #ff5c5c; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--fundo); color: var(--verde); font: 16px/1.35 Consolas, "Lucida Console", "Courier New", monospace; }
+  .tela { max-width: 860px; margin: 0 auto; padding: 16px; }
+  .moldura { border: 3px double var(--verde2); padding: 8px 14px; margin-bottom: 14px; }
+  pre { margin: 0; white-space: pre-wrap; word-break: break-word; font: inherit; }
+  #logo { line-height: 1.05; font-size: clamp(9px, 2.6vw, 20px); text-align: center; overflow: hidden; }
+  #logo span { display: block; white-space: pre; }
+  .titulo { text-align: center; color: #fff; letter-spacing: .35em; margin: 8px 0 2px; }
+  .relogio { text-align: center; color: var(--cinza); font-size: 13px; }
+  .secao { color: var(--amarelo); border-bottom: 1px solid var(--verde2); margin: 0 0 6px; padding-bottom: 4px; }
+  .menu { list-style: none; padding: 0; margin: 0; }
+  .menu button { background: none; border: 0; color: var(--verde); font: inherit; cursor: pointer; text-align: left; width: 100%; padding: 5px 4px; }
+  .menu button:hover, .menu button:focus { background: var(--verde); color: #000; outline: none; }
+  .menu b { display: inline-block; width: 2.2em; color: var(--ciano); }
+  .menu button:hover b, .menu button:focus b { color: #000; }
+  .form { display: none; margin-top: 8px; }
+  .form label { display: block; color: var(--amarelo); margin: 8px 0 3px; }
+  .form input, .form textarea, .form select { width: 100%; background: #031a0a; color: var(--verde); border: 1px solid var(--verde2); font: inherit; padding: 6px 8px; }
+  .form button { margin-top: 10px; background: var(--verde); color: #000; border: 0; font: inherit; font-weight: bold; padding: 7px 16px; cursor: pointer; }
+  #saida { min-height: 120px; max-height: 60vh; overflow: auto; }
+  .erro { color: var(--vermelho); }
+  .rodape { color: var(--cinza); font-size: 12px; text-align: center; }
+</style>
+</head>
+<body>
+<div class="tela">
+  <div class="moldura">
+    <div id="logo" aria-label="MZ"></div>
+    <div class="titulo">CONSULTA MZ</div>
+    <div class="relogio" id="relogio"></div>
+  </div>
+
+  <div class="moldura">
+    <p class="secao">MENU</p>
+    <ul class="menu" id="menu"></ul>
+    <div class="form" id="form">
+      <label id="rotulo" for="campo"></label>
+      <input id="campo" autocomplete="off">
+      <label id="rotulo2" for="campo2" hidden></label>
+      <textarea id="campo2" rows="3" hidden></textarea>
+      <button id="ok">Consultar</button>
+    </div>
+  </div>
+
+  <div class="moldura">
+    <p class="secao" id="tituloSaida">RESULTADO</p>
+    <pre id="saida">Escolha uma opção do menu (clique ou digite o número).</pre>
+  </div>
+  <p class="rodape">MZ App - somente consulta - rede interna</p>
+</div>
+
+<script>
+(function () {
+  var ITENS = [
+    { k: "1", t: "Pedidos sem checkout", id: "checkout_abertos", campo: "Plataforma (vazio = todas: shopee, magalu, amazon ou meli)", param: "plataforma", opcional: true },
+    { k: "2", t: "Resumo da Expedição de hoje", id: "expedicao_resumo" },
+    { k: "3", t: "Envios Full / coletas", id: "full_envios" },
+    { k: "4", t: "Cancelados ainda ativos no Bling", id: "cancelamentos" },
+    { k: "5", t: "Consultar um pedido", id: "pedido", campo: "Número do pedido", param: "numero" },
+    { k: "6", t: "Estoque de um SKU", id: "estoque", campo: "SKU (ou o começo dele)", param: "sku" },
+    { k: "7", t: "Reclamação de um pedido", id: "reclamacao", campo: "Número do pedido do Mercado Livre", param: "numero" },
+    { k: "8", t: "Pendências do SAC", id: "sac_resumo" },
+    { k: "9", t: "Pedir uma consulta nova", pedido: true },
+    { k: "P", t: "Perguntar em português", pergunta: true }
+  ];
+  var logo = document.getElementById("logo"), menu = document.getElementById("menu"), form = document.getElementById("form");
+  var campo = document.getElementById("campo"), campo2 = document.getElementById("campo2");
+  var rotulo = document.getElementById("rotulo"), rotulo2 = document.getElementById("rotulo2");
+  var saida = document.getElementById("saida"), tituloSaida = document.getElementById("tituloSaida"), atual = null;
+
+  // logo MZ em blocos
+  var M = ["##     ##", "###   ###", "#### ####", "## ### ##", "##  #  ##", "##     ##", "##     ##"];
+  var Z = ["#########", "      ###", "     ### ", "    ###  ", "   ###   ", "  ###    ", "#########"];
+  var cores = ["#4de8ff", "#4de8ff", "#33ff66", "#33ff66", "#1f9d3f", "#1f9d3f", "#7a7a7a"];
+  M.forEach(function (l, i) {
+    var s = document.createElement("span");
+    s.style.color = cores[i];
+    s.textContent = (l + "   " + Z[i]).split("").map(function (c) { return c === "#" ? "██" : "  "; }).join("");
+    logo.appendChild(s);
+  });
+
+  function relogio() {
+    var d = new Date(), p = function (n) { return ("0" + n).slice(-2); };
+    document.getElementById("relogio").textContent = p(d.getDate()) + "/" + p(d.getMonth() + 1) + "/" + d.getFullYear() + " " + p(d.getHours()) + ":" + p(d.getMinutes());
+  }
+  relogio(); setInterval(relogio, 30000);
+
+  function mostrar(titulo, linhas, erro) {
+    tituloSaida.textContent = titulo;
+    saida.textContent = Array.isArray(linhas) ? linhas.join("\n") : String(linhas);
+    saida.className = erro ? "erro" : "";
+    saida.scrollTop = 0;
+  }
+
+  function chamar(url, opcoes) {
+    return fetch(url, opcoes).then(function (r) {
+      return r.text().then(function (txt) {
+        var j; try { j = JSON.parse(txt); } catch (e) { j = null; }
+        if (!r.ok) throw new Error((j && j.detail) || ("erro " + r.status));
+        return j;
+      });
+    });
+  }
+
+  function consultar(titulo, url, opcoes) {
+    mostrar(titulo, "Consultando...");
+    chamar(url, opcoes).then(function (j) { mostrar(titulo, j.texto || ["(sem resposta)"]); })
+      .catch(function (e) { mostrar(titulo, ["Não foi possível consultar:", "  " + e.message], true); });
+  }
+
+  function escolher(item) {
+    atual = item;
+    form.style.display = "none";
+    if (item.id && !item.campo) { consultar(item.t.toUpperCase(), "/consulta/executar/" + item.id); return; }
+    form.style.display = "block";
+    rotulo.textContent = item.campo || (item.pedido ? "Seu nome" : "Sua pergunta");
+    campo.value = ""; campo2.value = "";
+    var dois = !!item.pedido;
+    campo2.hidden = rotulo2.hidden = !dois;
+    if (dois) rotulo2.textContent = "Descreva a consulta que você precisa (o que quer saber, de qual pedido, SKU ou plataforma)";
+    document.getElementById("ok").textContent = item.pedido ? "Enviar pedido" : "Consultar";
+    campo.focus();
+  }
+
+  function enviar() {
+    if (!atual) return;
+    var v = campo.value.trim(), t = atual.t.toUpperCase();
+    if (atual.pedido) {
+      if (campo2.value.trim().length < 10) { mostrar("PEDIDO DE CONSULTA", ["Descreva melhor o que você precisa (mínimo 10 letras)."], true); return; }
+      consultar("PEDIDO DE CONSULTA", "/consulta/solicitar", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ nome: v, texto: campo2.value.trim() }) });
+    } else if (atual.pergunta) {
+      if (v) consultar("RESPOSTA", "/consulta/perguntar?texto=" + encodeURIComponent(v));
+    } else if (v || atual.opcional) {
+      var q = v ? "?" + atual.param + "=" + encodeURIComponent(atual.param === "plataforma" ? v.toLowerCase() : v) : "";
+      consultar(t + (v ? " " + v.toUpperCase() : ""), "/consulta/executar/" + atual.id + q);
+    }
+  }
+
+  ITENS.forEach(function (item) {
+    var li = document.createElement("li"), b = document.createElement("button"), k = document.createElement("b");
+    k.textContent = item.k; b.appendChild(k); b.appendChild(document.createTextNode(item.t));
+    b.addEventListener("click", function () { escolher(item); });
+    li.appendChild(b); menu.appendChild(li);
+  });
+  document.getElementById("ok").addEventListener("click", enviar);
+  campo.addEventListener("keydown", function (e) { if (e.key === "Enter" && !(atual && atual.pedido)) enviar(); });
+  document.addEventListener("keydown", function (e) {
+    if (e.target && /INPUT|TEXTAREA/.test(e.target.tagName)) return;
+    var item = ITENS.filter(function (i) { return i.k === e.key.toUpperCase(); })[0];
+    if (item) escolher(item);
+  });
+})();
+</script>
+</body>
+</html>
