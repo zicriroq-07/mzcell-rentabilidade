@@ -51,6 +51,13 @@ function Chamar($Caminho, $Consulta = @{}) {
     }
 }
 
+function Responder($texto) {
+    # primeiro as consultas cadastradas (instantâneo); se não entender, a pergunta livre (alguns segundos)
+    $r = Chamar "/consulta/perguntar" @{ texto = $texto }
+    if ($r.entendi) { return $r }
+    Write-Host "Pensando... pode levar alguns segundos." -ForegroundColor DarkGray
+    return Chamar "/consulta/livre" @{ texto = $texto }
+}
 function Mostrar($r) {
     if ($Json) { $r | ConvertTo-Json -Depth 12; return }
     if ($r.texto) { $r.texto | ForEach-Object { Write-Host $_ } } else { $r | ConvertTo-Json -Depth 6 }
@@ -210,7 +217,7 @@ function Tela-Principal {
             "A" { Avancada-Tela }
             "P" {
                 $t = Pedir "Sua pergunta"
-                if ($t) { try { $r = Chamar "/consulta/perguntar" @{ texto = $t }; Resultado "RESPOSTA" $r.texto } catch { Resultado "RESPOSTA" @("Não consegui responder:", "  $_") } }
+                if ($t) { try { $r = Responder $t; Resultado "RESPOSTA" $r.texto } catch { Resultado "RESPOSTA" @("Não consegui responder:", "  $_") } }
             }
             { $_ -in "S", "0", "SAIR" } { Clear-Host; return }
         }
@@ -249,17 +256,17 @@ switch ($Comando.ToLower()) {
             $t = $t.Trim()
             if (-not $t) { continue }
             if ($t -in "sair", "fechar", "exit") { break }
-            try { Mostrar (Chamar "/consulta/perguntar" @{ texto = $t }) } catch { Write-Host "Não consegui responder: $_" -ForegroundColor Red }
+            try { Mostrar (Responder $t) } catch { Write-Host "Não consegui responder: $_" -ForegroundColor Red }
         }
     }
     "ajuda" { Mostrar (Chamar "/consulta/executar/ajuda") }
-    "perguntar" { Mostrar (Chamar "/consulta/perguntar" @{ texto = ($Resto -join " ") }) }
+    "perguntar" { Mostrar (Responder ($Resto -join " ")) }
     "executar" { Mostrar (Chamar "/consulta/executar/$($Resto[0])" $Parametros) }
     "bling" { $r = Chamar "/consulta/bling/$($Resto[0])/$($Resto[1])" $Parametros; $r | ConvertTo-Json -Depth 12 }
     "ml" { $r = Chamar "/consulta/ml/$($Resto[0])/$($Resto[1])" $Parametros; $r | ConvertTo-Json -Depth 12 }
     "estatisticas" { Chamar "/consulta/estatisticas" | ConvertTo-Json -Depth 6 }
     default {
         # qualquer outra coisa é tratada como pergunta: .\mz-consulta.ps1 quantos checkouts em aberto
-        Mostrar (Chamar "/consulta/perguntar" @{ texto = (@($Comando) + $Resto) -join " " })
+        Mostrar (Responder ((@($Comando) + $Resto) -join " "))
     }
 }
