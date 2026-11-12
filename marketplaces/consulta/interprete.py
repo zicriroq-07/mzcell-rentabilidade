@@ -41,6 +41,12 @@ def extrair(texto: str) -> dict:
         if any(_tem(n, t) for t in termos):
             p["plataforma"] = nome
             break
+    for canal in ("flex", "coleta", "places", "dba"):
+        if _tem(n, canal):
+            p["canal"] = canal
+            break
+    if any(_tem(n, t) for t in ("cidade", "cep", "endereco", "bairro")):
+        p["endereco"] = "sim"
     m = re.search(r"\b(\d{1,2}) dias\b", n)
     if m:
         p["dias"] = int(m.group(1))

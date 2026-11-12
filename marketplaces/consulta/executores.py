@@ -49,25 +49,50 @@ def _dia():
     return exr
 
 
-def checkout_abertos(u, plataforma=None, **_):
+def _enderecos(lista: list) -> None:
+    """Cidade, UF e CEP de entrega (só isso: sem nome nem rua) dos pedidos do Mercado Livre, pelo envio. Os demais canais ficam sem."""
+    from concurrent.futures import ThreadPoolExecutor
+    from reposicao_full import ML
+
+    def um(x):
+        if str(x.get("conta") or "").startswith("meli") and x.get("envio"):
+            try:
+                st, r = ML(x["conta"]).get(f"/shipments/{x['envio']}")
+                a = ((r or {}).get("receiver_address") or {}) if st == 200 else {}
+                uf = str((a.get("state") or {}).get("id") or "").replace("BR-", "")
+                x["cidade"] = f"{(a.get('city') or {}).get('name') or '-'}/{uf}"
+                x["cep"] = a.get("zip_code") or "-"
+            except Exception:
+                pass
+    with ThreadPoolExecutor(8) as ex:
+        list(ex.map(um, lista))
+
+
+def checkout_abertos(u, plataforma=None, conta=None, canal=None, endereco=None, **_):
     lista = _dia()._dia(False, None, None, False, so_lista=True)
     if not isinstance(lista, list):
         return {"texto": ["Os dados do dia ainda estão carregando no servidor. Tente de novo em 1 minuto."], "dados": {"carregando": True}}
     if plataforma:
         termos = PLATAFORMAS.get(plataforma, (plataforma,))
         lista = [x for x in lista if any(t in f"{x.get('canal')} {x.get('conta')}".lower() for t in termos)]
+    if conta:
+        lista = [x for x in lista if str(x.get("conta") or "").lower() == str(conta).lower() or _bling_de(x) == str(conta).lower()]
+    if canal:
+        lista = [x for x in lista if canal.lower() in str(x.get("canal") or "").lower()]
+    if endereco:
+        _enderecos(lista[:60])
     por = {}
     for x in lista:
         g = por.setdefault(x.get("canal") or "?", {"canal": x.get("canal"), "pedidos": 0, "atrasados": 0})
         g["pedidos"] += 1
         g["atrasados"] += 1 if x.get("atrasado") else 0
     atras = sum(1 for x in lista if x.get("atrasado"))
-    cab = f"{len(lista)} pedido(s) sem checkout" + (f" ({plataforma})" if plataforma else "") + f", {atras} atrasado(s)."
+    cab = f"{len(lista)} pedido(s) sem checkout" + "".join(f" ({v})" for v in (plataforma, conta, canal) if v) + f", {atras} atrasado(s)."
     texto = [cab] + [f"  {g['canal']}: {g['pedidos']} ({g['atrasados']} atrasados)" for g in sorted(por.values(), key=lambda g: -g["pedidos"])]
-    texto += ["", "Pedido                 Canal            Conta     Bling (nº)       Corte        Situação"]
+    texto += ["", "Pedido                 Canal            Conta     Bling (nº)       " + ("Cidade/UF                CEP        " if endereco else "") + "Corte        Situação"]
     for x in lista[:60]:
         bn = f"{_bling_de(x)} {x['bling_numero']}" if x.get("bling_numero") else f"{_bling_de(x)} -"
-        texto.append(f"{str(x.get('pedido') or x.get('envio') or ''):<22} {str(x.get('canal') or ''):<16} {str(x.get('conta') or ''):<9} {bn:<16} {_hora(x.get('meta')):<12} "
+        texto.append(f"{str(x.get('pedido') or x.get('envio') or ''):<22} {str(x.get('canal') or ''):<16} {str(x.get('conta') or ''):<9} {bn:<16} {(str(x.get('cidade') or '-')[:24].ljust(24) + ' ' + str(x.get('cep') or '-').ljust(10) + ' ') if endereco else ''}{_hora(x.get('meta')):<12} "
                      f"{'ATRASADO ' if x.get('atrasado') else ''}{'(dia anterior) ' if x.get('herdado') else ''}{x.get('bling_situacao') or x.get('situacao') or ''}")
     if len(lista) > 60:
         texto.append(f"... e mais {len(lista) - 60} (use -Json para a lista completa)")

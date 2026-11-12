@@ -11,8 +11,10 @@ params: nome, obrigatorio. Módulos: quem tem algum deles (ou "todos") pode faze
 CATALOGO = [
     {"id": "checkout_abertos", "titulo": "Pedidos sem checkout", "modulos": ["expedicao"],
      "descricao": "Quantos pedidos de hoje (e atrasados de dias anteriores) ainda não têm checkout, por canal e pedido a pedido.",
-     "palavras": ["checkout", "checkouts", "sem checkout", "em aberto", "pendentes", "pendente", "faltam", "falta bipar", "nao bipado", "sem bipar", "atrasados", "atrasado"],
-     "params": [{"nome": "plataforma", "obrigatorio": False}], "exemplo": "quantos checkouts tenho em aberto hoje? (ou: ... da shopee)"},
+     "palavras": ["checkout", "checkouts", "sem checkout", "em aberto", "pendentes", "pendente", "faltam", "falta bipar", "nao bipado", "sem bipar", "atrasados", "atrasado", "pedidos flex", "flex atrasado", "impactando"],
+     "params": [{"nome": "plataforma", "obrigatorio": False}, {"nome": "conta", "obrigatorio": False}, {"nome": "canal", "obrigatorio": False},
+                {"nome": "endereco", "obrigatorio": False}],
+     "exemplo": "quantos checkouts tenho em aberto hoje? (ou: ... da shopee / flex da meli03 com cidade e cep)"},
     {"id": "expedicao_resumo", "titulo": "Resumo do dia da Expedição", "modulos": ["expedicao"],
      "descricao": "Pedidos do dia, checkouts feitos, pendentes, atrasados, cortes e contagem por canal.",
      "palavras": ["resumo", "expedicao", "como esta o dia", "painel", "cortes", "corte", "pedidos do dia", "pedidos de hoje", "quantos pedidos", "andamento", "status do dia"],

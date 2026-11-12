@@ -239,7 +239,7 @@ switch ($Comando.ToLower()) {
         Write-Host "Olá, $($r.nome). Acesso: $($r.modulos -join ', '). Válido por $($r.validade_horas) h."
     }
     "sair" { Remove-Item $ArqToken -ErrorAction SilentlyContinue; Write-Host "Sessão encerrada." }
-    "consultas" { Chamar "/consulta/consultas" | ForEach-Object { Write-Host ("{0,-18} {1}`n{2,-18} ex.: {3}" -f $_.id, $_.titulo, "", $_.exemplo) } }
+    "consultas" { $lista = Chamar "/consulta/consultas"; if ($lista.Count -eq 1 -and $lista[0] -is [array]) { $lista = $lista[0] }; $lista | ForEach-Object { Write-Host ("{0,-18} {1}`n{2,-18} ex.: {3}" -f $_.id, $_.titulo, "", $_.exemplo) } }
     "tela" { Tela-Principal }
     "interativo" {
         # tela da Consulta MZ: o funcionário digita a pergunta, sem comandos
