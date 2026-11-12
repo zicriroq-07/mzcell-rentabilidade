@@ -128,6 +128,12 @@ try:
 except ImportError as e:
     print(f"[startup] Módulo Expedição indisponível: {e}")
 
+try:
+    from marketplaces.consulta.router import router as consulta_router
+    app.include_router(consulta_router)
+except ImportError as e:
+    print(f"[startup] Consulta por PowerShell indisponível: {e}")
+
 # Módulos em construção: o código vem no instalador, mas só sobem se estiverem abertos em
 # modulos_liberados.py. Sem esse arquivo (instalação antiga), ficam todos fechados.
 try:

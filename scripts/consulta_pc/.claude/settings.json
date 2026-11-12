@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(*mz-consulta.ps1*)",
+      "Bash(*mz-consulta.ps1*)",
+      "Read(./CLAUDE.md)"
+    ],
+    "deny": [
+      "Edit",
+      "Write",
+      "NotebookEdit",
+      "WebFetch",
+      "WebSearch"
+    ]
+  }
+}

@@ -27,6 +27,9 @@ PUBLICOS = ("/", "/galpao", "/auth/login", "/auth/recuperar-senha", "/auth/redef
 # nem com login, de outro PC: credenciais/tokens dos marketplaces e abrir programa na tela do servidor
 SEMPRE_LOCAL = ("/config", "/auth/url", "/auth/autorizar", "/auth/refresh", "/sistema/abrir-link", "/docs", "/openapi.json")
 
+# tem login próprio (token Bearer) e só lê: /consulta, usado pelo PowerShell de qualquer PC (ver marketplaces/consulta)
+AUTONOMOS = ("/consulta",)
+
 COOKIE = "mz_sessao"
 VALIDADE_SEG = 12 * 3600
 _sessoes = {}  # token -> (login, expira_em); em memória: reiniciar o servidor pede login de novo
@@ -105,7 +108,7 @@ def instalar(app):
             return JSONResponse({"detail": "acesso restrito ao computador do servidor"}, status_code=403)
         if path == "/galpao":
             return HTMLResponse(MENU)
-        if path in PUBLICOS or sessao_valida(request.cookies.get(COOKIE)):
+        if path in PUBLICOS or _casa(path, AUTONOMOS) or sessao_valida(request.cookies.get(COOKIE)):
             return await call_next(request)
         if request.method == "GET" and _casa(path, GESTAO) and "text/html" in request.headers.get("accept", ""):
             volta = path + ("?" + request.url.query if request.url.query else "")
