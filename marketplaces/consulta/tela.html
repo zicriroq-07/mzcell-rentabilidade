@@ -6,100 +6,99 @@
 <title>Consulta MZ</title>
 <style>
   :root {
-    --bg: #f4f6f9; --card: #ffffff; --borda: #e3e8ef; --texto: #1b2433; --suave: #6b7686; --marca: #0f766e; --marca2: #14b8a6;
-    --acento: #eef7f6; --erro: #b42318; --erro-bg: #fef3f2; --ok-bg: #ecfdf3; --ok: #067647; --aviso-bg: #fffaeb; --aviso: #b54708;
-    --sombra: 0 1px 2px rgba(16,24,40,.06), 0 4px 16px rgba(16,24,40,.06);
+    --bg: #0a0a0f; --bg2: #111118; --bg3: #1a1a24; --bg4: #22222e; --borda: rgba(255,255,255,.07); --borda2: rgba(255,255,255,.12);
+    --texto: #f0f0f5; --muted: #6b7280; --muted2: #9ca3af; --ouro: #f6c90e; --verde: #10b981; --vermelho: #ef4444; --laranja: #f97316;
+    --fonte: 'Segoe UI', Roboto, Arial, sans-serif; --mono: Consolas, 'Courier New', monospace;
   }
-  @media (prefers-color-scheme: dark) {
-    :root { --bg: #0e1420; --card: #161e2d; --borda: #26324a; --texto: #e7ecf4; --suave: #93a0b5; --marca: #2dd4bf; --marca2: #5eead4;
-            --acento: #12303a; --erro: #fda29b; --erro-bg: #3a1a1a; --ok-bg: #11301f; --ok: #75e0a7; --aviso-bg: #3a2c10; --aviso: #fec84b;
-            --sombra: 0 1px 2px rgba(0,0,0,.4), 0 6px 20px rgba(0,0,0,.3); }
-  }
-  * { box-sizing: border-box; }
-  html, body { margin: 0; background: var(--bg); color: var(--texto); font: 15px/1.45 system-ui, "Segoe UI", Roboto, sans-serif; }
-  .pagina { max-width: 1080px; margin: 0 auto; padding: 20px 16px 40px; }
-  header { display: flex; align-items: center; gap: 14px; margin-bottom: 18px; }
-  .marca { width: 46px; height: 46px; border-radius: 12px; display: grid; place-items: center; color: #fff; font-weight: 800; font-size: 19px; letter-spacing: -.5px;
-           background: linear-gradient(135deg, var(--marca), var(--marca2)); box-shadow: var(--sombra); }
-  header h1 { margin: 0; font-size: 21px; letter-spacing: -.2px; }
-  header p { margin: 0; color: var(--suave); font-size: 13px; }
-  .relogio { margin-left: auto; color: var(--suave); font-size: 13px; text-align: right; }
-  .card { background: var(--card); border: 1px solid var(--borda); border-radius: 14px; box-shadow: var(--sombra); }
-  .pergunta { padding: 16px; margin-bottom: 16px; }
-  .pergunta form { display: flex; gap: 10px; }
-  .pergunta input { flex: 1; min-width: 0; font: inherit; padding: 13px 14px; border-radius: 10px; border: 1px solid var(--borda); background: var(--bg); color: var(--texto); }
-  .pergunta input:focus, .campo input:focus, .campo textarea:focus { outline: 2px solid var(--marca2); border-color: transparent; }
-  button { font: inherit; cursor: pointer; }
-  .primario { background: var(--marca); color: #fff; border: 0; border-radius: 10px; padding: 0 20px; font-weight: 600; }
-  .primario:disabled { opacity: .55; cursor: default; }
-  .sugestoes { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
-  .chip { background: var(--acento); color: var(--marca); border: 0; border-radius: 999px; padding: 6px 12px; font-size: 13px; }
-  .chip:hover { filter: brightness(.96); }
-  h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--suave); margin: 22px 2px 10px; }
-  .grade { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
-  .atalho { text-align: left; padding: 14px; background: var(--card); border: 1px solid var(--borda); border-radius: 12px; color: var(--texto); box-shadow: var(--sombra); }
-  .atalho:hover { border-color: var(--marca2); }
-  .atalho b { display: block; font-size: 15px; margin-bottom: 2px; }
-  .atalho span { color: var(--suave); font-size: 13px; }
-  .painel { display: none; padding: 16px; margin-top: 14px; }
-  .campo { display: block; margin-bottom: 10px; }
-  .campo label { display: block; font-size: 13px; color: var(--suave); margin-bottom: 4px; }
-  .campo input, .campo textarea { width: 100%; font: inherit; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--borda); background: var(--bg); color: var(--texto); }
-  .linha { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
-  .secundario { background: transparent; color: var(--suave); border: 1px solid var(--borda); border-radius: 10px; padding: 8px 14px; }
-  #resultado { margin-top: 16px; display: none; }
-  #resultado .topo { display: flex; align-items: center; gap: 10px; padding: 14px 16px; border-bottom: 1px solid var(--borda); }
-  #resultado .topo h3 { margin: 0; font-size: 16px; }
-  #resultado .topo .acoes { margin-left: auto; display: flex; gap: 8px; }
-  #resultado .corpo { padding: 16px; }
-  .resumo { white-space: pre-wrap; margin: 0 0 12px; font: inherit; }
-  .erro { color: var(--erro); background: var(--erro-bg); border-radius: 10px; padding: 12px 14px; white-space: pre-wrap; }
-  .espera { color: var(--suave); display: flex; align-items: center; gap: 10px; }
-  .roda { width: 16px; height: 16px; border: 2px solid var(--borda); border-top-color: var(--marca2); border-radius: 50%; animation: gira .8s linear infinite; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { background: var(--bg); color: var(--texto); font: 14px/1.45 var(--fonte); min-height: 100vh; }
+  button { font: inherit; cursor: pointer; color: inherit; }
+  .lateral { position: fixed; left: 0; top: 0; bottom: 0; width: 240px; background: var(--bg2); border-right: 1px solid var(--borda); display: flex; flex-direction: column; overflow-y: auto; }
+  .logo { display: flex; align-items: center; gap: 10px; padding: 16px 16px 14px; border-bottom: 1px solid var(--borda); }
+  .logo b { background: var(--ouro); color: #0a0a0f; font-weight: 800; padding: 5px 7px; border-radius: 4px; font-size: 15px; letter-spacing: .02em; }
+  .logo span { font-weight: 600; font-size: 14px; }
+  .logo small { display: block; color: var(--muted); font-size: 11px; font-weight: 400; }
+  .grupo { padding: 14px 16px 6px; color: var(--muted); font-size: 10.5px; letter-spacing: .08em; text-transform: uppercase; font-weight: 600; }
+  .item { display: block; width: 100%; text-align: left; background: none; border: 0; border-left: 3px solid transparent; padding: 9px 16px 9px 13px; color: var(--muted2); font-size: 13px; }
+  .item:hover { background: var(--bg3); color: var(--texto); }
+  .item.ativo { background: var(--bg3); color: var(--ouro); border-left-color: var(--ouro); }
+  .principal { margin-left: 240px; min-height: 100vh; }
+  .topo { height: 60px; background: var(--bg2); border-bottom: 1px solid var(--borda); padding: 0 28px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 5; }
+  .topo h1 { font-size: 15px; font-weight: 700; }
+  .topo .relogio { color: var(--muted2); font: 12px var(--mono); }
+  .conteudo { padding: 22px 28px 40px; max-width: 1280px; }
+  .busca { display: flex; gap: 8px; }
+  .busca input { flex: 1; min-width: 0; background: var(--bg2); border: 1px solid var(--borda2); color: var(--texto); padding: 11px 14px; border-radius: 6px; font: inherit; }
+  .busca input::placeholder { color: var(--muted); }
+  input:focus, textarea:focus { outline: none; border-color: var(--ouro); }
+  .btn { background: var(--ouro); color: #0a0a0f; border: 0; border-radius: 6px; padding: 0 20px; font-weight: 700; }
+  .btn:disabled { opacity: .5; cursor: default; }
+  .btn2 { background: none; border: 1px solid var(--borda2); color: var(--muted2); border-radius: 6px; padding: 7px 14px; font-size: 13px; }
+  .btn2:hover { color: var(--texto); border-color: var(--muted); }
+  .dicas { margin-top: 8px; color: var(--muted); font-size: 12px; }
+  .dicas a { color: var(--muted2); cursor: pointer; text-decoration: none; margin-right: 14px; border-bottom: 1px dotted var(--muted); }
+  .dicas a:hover { color: var(--ouro); }
+  .filtro { display: none; margin-top: 16px; background: var(--bg2); border: 1px solid var(--borda); border-radius: 6px; padding: 14px 16px; }
+  .filtro label { display: block; color: var(--muted2); font-size: 12px; margin-bottom: 5px; }
+  .filtro input, .filtro textarea { width: 100%; background: var(--bg); border: 1px solid var(--borda2); color: var(--texto); padding: 9px 12px; border-radius: 6px; font: inherit; margin-bottom: 10px; }
+  .linha { display: flex; gap: 8px; align-items: center; }
+  #resultado { display: none; margin-top: 18px; background: var(--bg2); border: 1px solid var(--borda); border-radius: 6px; }
+  .rt { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-bottom: 1px solid var(--borda); }
+  .rt h2 { font-size: 14px; font-weight: 700; }
+  .rt .meta { color: var(--muted); font-size: 12px; margin-left: 10px; font-weight: 400; }
+  .rc { padding: 16px; }
+  .resumo { white-space: pre-wrap; font: 13px/1.55 var(--mono); color: var(--texto); margin-bottom: 14px; }
+  .erro { color: var(--vermelho); background: rgba(239,68,68,.08); border: 1px solid rgba(239,68,68,.25); border-radius: 6px; padding: 11px 14px; white-space: pre-wrap; }
+  .espera { color: var(--muted2); display: flex; align-items: center; gap: 10px; }
+  .roda { width: 14px; height: 14px; border: 2px solid var(--bg4); border-top-color: var(--ouro); border-radius: 50%; animation: gira .8s linear infinite; }
   @keyframes gira { to { transform: rotate(360deg); } }
-  .tabela { overflow-x: auto; border: 1px solid var(--borda); border-radius: 10px; }
-  table { border-collapse: collapse; width: 100%; font-size: 13.5px; }
-  th { text-align: left; font-weight: 600; color: var(--suave); background: var(--bg); white-space: nowrap; }
+  .tabela { overflow-x: auto; border: 1px solid var(--borda); border-radius: 6px; }
+  table { border-collapse: collapse; width: 100%; font-size: 12.5px; }
+  th { text-align: left; background: var(--bg3); color: var(--muted2); font-weight: 600; font-size: 11px; letter-spacing: .04em; text-transform: uppercase; white-space: nowrap; }
   th, td { padding: 8px 12px; border-bottom: 1px solid var(--borda); }
+  tbody tr:hover { background: var(--bg3); }
   tr:last-child td { border-bottom: 0; }
-  td.num { font-variant-numeric: tabular-nums; white-space: nowrap; }
-  .etq { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 12px; font-weight: 600; white-space: nowrap; }
-  .etq.vermelho { background: var(--erro-bg); color: var(--erro); } .etq.amarelo { background: var(--aviso-bg); color: var(--aviso); }
-  .rodape { color: var(--suave); font-size: 12px; text-align: center; margin-top: 28px; }
-  @media (max-width: 560px) { .pergunta form { flex-direction: column; } .primario { padding: 12px; } .relogio { display: none; } }
+  td.num { font-family: var(--mono); white-space: nowrap; }
+  .etq { font-size: 10.5px; font-weight: 700; padding: 1px 6px; border-radius: 3px; margin-right: 6px; letter-spacing: .03em; }
+  .etq.vermelho { color: var(--vermelho); background: rgba(239,68,68,.12); } .etq.amarelo { color: var(--ouro); background: rgba(246,201,14,.12); }
+  .rodape { color: var(--muted); font-size: 11.5px; margin-top: 26px; }
+  @media (max-width: 800px) {
+    .lateral { position: static; width: auto; flex-direction: row; flex-wrap: wrap; border-right: 0; border-bottom: 1px solid var(--borda); }
+    .lateral .grupo, .lateral .logo small { display: none; }
+    .logo { border-bottom: 0; } .item { width: auto; border-left: 0; padding: 8px 10px; }
+    .principal { margin-left: 0; } .conteudo { padding: 16px; } .topo { padding: 0 16px; }
+  }
 </style>
 </head>
 <body>
-<div class="pagina">
-  <header>
-    <div class="marca">MZ</div>
-    <div><h1>Consulta MZ</h1><p>Pergunte sobre pedidos, envios, estoque e reclamações</p></div>
-    <div class="relogio" id="relogio"></div>
-  </header>
-
-  <div class="card pergunta">
-    <form id="formPergunta">
-      <input id="pergunta" autocomplete="off" placeholder="Escreva sua pergunta em português. Ex.: quais envios flex estão atrasados na meli03?" aria-label="Sua pergunta">
-      <button class="primario" id="botaoPerguntar" type="submit">Perguntar</button>
+<nav class="lateral">
+  <div class="logo"><b>MZ</b><span>Consulta<small>MZ App</small></span></div>
+  <div class="grupo">Consultas</div>
+  <div id="menu"></div>
+  <div class="grupo">Solicitações</div>
+  <div id="menu2"></div>
+</nav>
+<div class="principal">
+  <div class="topo"><h1 id="tituloPagina">Consulta</h1><span class="relogio" id="relogio"></span></div>
+  <div class="conteudo">
+    <form class="busca" id="formPergunta">
+      <input id="pergunta" autocomplete="off" placeholder="Pergunte em português, ex.: envios flex atrasados na meli03" aria-label="Sua pergunta">
+      <button class="btn" id="botaoPerguntar" type="submit">Perguntar</button>
     </form>
-    <div class="sugestoes" id="sugestoes"></div>
-  </div>
+    <div class="dicas" id="sugestoes">Exemplos: </div>
 
-  <h2>Consultas prontas</h2>
-  <div class="grade" id="grade"></div>
+    <div class="filtro" id="painelCampo">
+      <label id="rotulo" for="campo"></label><input id="campo" autocomplete="off">
+      <div id="blocoTexto" hidden><label id="rotulo2" for="campo2"></label><textarea id="campo2" rows="3"></textarea></div>
+      <div class="linha"><button class="btn" id="ok" style="padding:8px 18px">Consultar</button><button type="button" class="btn2" id="fechar">Cancelar</button></div>
+    </div>
 
-  <div class="card painel" id="painelCampo">
-    <div class="campo"><label id="rotulo" for="campo"></label><input id="campo" autocomplete="off"></div>
-    <div class="campo" id="blocoTexto" hidden><label id="rotulo2" for="campo2"></label><textarea id="campo2" rows="3"></textarea></div>
-    <div class="linha"><button class="primario" id="ok" style="padding:10px 20px">Consultar</button><button class="secundario" id="fechar">Cancelar</button></div>
+    <div id="resultado">
+      <div class="rt"><h2><span id="tituloRes">Resultado</span><span class="meta" id="metaRes"></span></h2><button class="btn2" id="botaoCsv" hidden>Baixar CSV</button></div>
+      <div class="rc" id="corpoRes"></div>
+    </div>
+    <p class="rodape">MZ App - somente consulta - rede interna</p>
   </div>
-
-  <div class="card" id="resultado">
-    <div class="topo"><h3 id="tituloRes">Resultado</h3>
-      <div class="acoes"><button class="secundario" id="botaoCsv" hidden>Baixar planilha (CSV)</button></div></div>
-    <div class="corpo" id="corpoRes"></div>
-  </div>
-  <p class="rodape">MZ App · somente consulta · rede interna</p>
 </div>
 
 <script>
@@ -155,8 +154,7 @@
   function dia(iso) { var m = /^(\d{4})-(\d\d)-(\d\d)/.exec(iso || ""); return m ? m[3] + "/" + m[2] : "-"; }
 
   function aberto(titulo) {
-    $("resultado").style.display = "block"; $("tituloRes").textContent = titulo; $("botaoCsv").hidden = true; ultimaTabela = null;
-    $("resultado").scrollIntoView({ behavior: "smooth", block: "nearest" });
+    $("resultado").style.display = "block"; $("tituloRes").textContent = titulo; $("metaRes").textContent = ""; $("botaoCsv").hidden = true; ultimaTabela = null;
   }
   function espera(titulo, msg) {
     aberto(titulo);
@@ -214,6 +212,7 @@
       var corte = linhas.indexOf("");
       c.appendChild(el("pre", "resumo", (corte > 0 ? linhas.slice(0, corte) : linhas.slice(0, 1)).join("\n")));
       c.appendChild(tabela(def, lista));
+      $("metaRes").textContent = lista.length + " registro(s)";
       if (lista.length > 500) c.appendChild(el("p", "rodape", "Mostrando 500 de " + lista.length + "."));
       $("botaoCsv").hidden = false;
     } else {
@@ -269,15 +268,17 @@
   }
 
   PRONTAS.forEach(function (item) {
-    var b = el("button", "atalho"); b.type = "button";
-    b.appendChild(el("b", null, item.t)); b.appendChild(el("span", null, item.d));
-    b.addEventListener("click", function () { escolher(item); });
-    $("grade").appendChild(b);
+    var b = el("button", "item", item.t); b.type = "button"; b.title = item.d;
+    b.addEventListener("click", function () {
+      Array.prototype.forEach.call(document.querySelectorAll(".item"), function (x) { x.classList.remove("ativo"); });
+      b.classList.add("ativo"); $("tituloPagina").textContent = item.t; escolher(item);
+    });
+    $(item.pedido ? "menu2" : "menu").appendChild(b);
   });
   SUGESTOES.forEach(function (s) {
-    var b = el("button", "chip", s); b.type = "button";
-    b.addEventListener("click", function () { $("pergunta").value = s; perguntar(s); });
-    $("sugestoes").appendChild(b);
+    var a = el("a", null, s);
+    a.addEventListener("click", function () { $("pergunta").value = s; perguntar(s); });
+    $("sugestoes").appendChild(a);
   });
   $("formPergunta").addEventListener("submit", function (e) { e.preventDefault(); var v = $("pergunta").value.trim(); if (v) perguntar(v); });
   $("ok").addEventListener("click", enviar);
