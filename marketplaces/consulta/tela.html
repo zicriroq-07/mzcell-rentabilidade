@@ -100,20 +100,36 @@
     saida.scrollTop = 0;
   }
 
+  // uma consulta por vez: pedir outra cancela a que ficou pendente, e nenhuma fica esperando mais de 2 minutos
+  var pendente = null, ciclo = 0;
   function chamar(url, opcoes) {
+    if (pendente) pendente.abort();
+    var ctl = new AbortController(), meu = ++ciclo;
+    pendente = ctl;
+    var tempo = setTimeout(function () { ctl.abort(); }, 120000);
+    opcoes = Object.assign({}, opcoes, { signal: ctl.signal });
     return fetch(url, opcoes).then(function (r) {
       return r.text().then(function (txt) {
         var j; try { j = JSON.parse(txt); } catch (e) { j = null; }
         if (!r.ok) throw new Error((j && j.detail) || ("erro " + r.status));
         return j;
       });
-    });
+    }).catch(function (e) {
+      if (e && e.name === "AbortError") throw new Error(meu === ciclo ? "demorou demais: tente de novo" : "cancelada");
+      throw e;
+    }).then(function (j) { clearTimeout(tempo); if (pendente === ctl) pendente = null; return j; },
+            function (e) { clearTimeout(tempo); if (pendente === ctl) pendente = null; throw e; });
   }
 
   function consultar(titulo, url, opcoes) {
     mostrar(titulo, "Consultando...");
-    chamar(url, opcoes).then(function (j) { mostrar(titulo, j.texto || ["(sem resposta)"]); })
-      .catch(function (e) { mostrar(titulo, ["Não foi possível consultar:", "  " + e.message], true); });
+    chamar(url, opcoes).then(function (j) { mostrar(titulo, j.texto || ["(sem resposta)"]); pronto(); })
+      .catch(function (e) { if (e.message !== "cancelada") { mostrar(titulo, ["Não foi possível consultar:", "  " + e.message], true); pronto(); } });
+  }
+
+  // depois de cada resposta o campo volta limpo e focado, para a próxima consulta
+  function pronto() {
+    if (form.style.display === "block" && !(atual && atual.pedido)) { campo.value = ""; campo.focus(); }
   }
 
   function escolher(item) {
@@ -141,10 +157,10 @@
       mostrar("RESPOSTA", "Consultando...");
       // primeiro as consultas cadastradas (instantâneo); se não entender, tenta a pergunta livre (alguns segundos)
       chamar("/consulta/perguntar?texto=" + encodeURIComponent(v)).then(function (j) {
-        if (j.entendi) { mostrar("RESPOSTA", j.texto); return; }
+        if (j.entendi) { mostrar("RESPOSTA", j.texto); pronto(); return; }
         mostrar("RESPOSTA", "Pensando... pode levar alguns segundos.");
-        return chamar("/consulta/livre?texto=" + encodeURIComponent(v)).then(function (l) { mostrar("RESPOSTA", l.texto); });
-      }).catch(function (e) { mostrar("RESPOSTA", ["Não foi possível responder:", "  " + e.message], true); });
+        return chamar("/consulta/livre?texto=" + encodeURIComponent(v)).then(function (l) { mostrar("RESPOSTA", l.texto); pronto(); });
+      }).catch(function (e) { if (e.message !== "cancelada") { mostrar("RESPOSTA", ["Não foi possível responder:", "  " + e.message], true); pronto(); } });
     } else if (v || atual.opcional) {
       var q = v ? "?" + atual.param + "=" + encodeURIComponent(atual.param === "plataforma" ? v.toLowerCase() : v) : "";
       consultar(t + (v ? " " + v.toUpperCase() : ""), "/consulta/executar/" + atual.id + q);

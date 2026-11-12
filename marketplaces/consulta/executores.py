@@ -37,6 +37,13 @@ def _hora(iso) -> str:
         return "-"
 
 
+def _bling_de(x: dict) -> str:
+    """Conta do Bling do pedido: a informada ou a da empresa dona do canal (Techseller = bling01, Seller Info = bling02, Mizi = bling03)."""
+    if x.get("conta_bling"):
+        return x["conta_bling"]
+    return {"meli01": "bling01", "meli02": "bling02", "meli03": "bling03", "amazon02": "bling02"}.get(str(x.get("conta") or "").lower(), "bling01")
+
+
 def _dia():
     from marketplaces.expedicao import router as exr
     return exr
@@ -57,13 +64,14 @@ def checkout_abertos(u, plataforma=None, **_):
     atras = sum(1 for x in lista if x.get("atrasado"))
     cab = f"{len(lista)} pedido(s) sem checkout" + (f" ({plataforma})" if plataforma else "") + f", {atras} atrasado(s)."
     texto = [cab] + [f"  {g['canal']}: {g['pedidos']} ({g['atrasados']} atrasados)" for g in sorted(por.values(), key=lambda g: -g["pedidos"])]
-    texto += ["", "Pedido                 Canal            Corte        Situação"]
+    texto += ["", "Pedido                 Canal            Conta     Bling (nº)       Corte        Situação"]
     for x in lista[:60]:
-        texto.append(f"{str(x.get('pedido') or x.get('envio') or ''):<22} {str(x.get('canal') or ''):<16} {_hora(x.get('meta')):<12} "
+        bn = f"{_bling_de(x)} {x['bling_numero']}" if x.get("bling_numero") else f"{_bling_de(x)} -"
+        texto.append(f"{str(x.get('pedido') or x.get('envio') or ''):<22} {str(x.get('canal') or ''):<16} {str(x.get('conta') or ''):<9} {bn:<16} {_hora(x.get('meta')):<12} "
                      f"{'ATRASADO ' if x.get('atrasado') else ''}{'(dia anterior) ' if x.get('herdado') else ''}{x.get('bling_situacao') or x.get('situacao') or ''}")
     if len(lista) > 60:
         texto.append(f"... e mais {len(lista) - 60} (use -Json para a lista completa)")
-    return {"texto": texto, "dados": {"total": len(lista), "atrasados": atras, "por_canal": list(por.values()), "pedidos": lista}}
+    return {"texto": texto, "dados": {"total": len(lista), "atrasados": atras, "por_canal": list(por.values()), "pedidos": [dict(x, conta_bling=_bling_de(x)) for x in lista]}}
 
 
 def expedicao_resumo(u, **_):
@@ -98,10 +106,16 @@ def full_envios(u, **_):
 
 def cancelamentos(u, dias=7, **_):
     r = _dia().cancelamentos(dias=int(dias), atualizar=False)
-    itens = r.get("itens") if isinstance(r, dict) else r
+    itens = (r.get("pendentes") or r.get("itens")) if isinstance(r, dict) else r
     itens = itens or []
     return {"texto": [f"{len(itens)} pedido(s) cancelado(s) no ML que continuam ativos no Bling (últimos {dias} dias)."] +
-            [f"  {i.get('conta', '')} {i.get('pedido') or i.get('order_id') or ''} {i.get('bling_situacao') or ''}" for i in itens[:40]], "dados": r}
+            [f"  {i.get('conta', '')} pedido {i.get('pedido') or i.get('order_id') or ''} - {_bling_de(i)} nº {i.get('bling_numero') or '-'}: {i.get('bling_situacao') or ''}" for i in itens[:40]], "dados": r}
+
+
+def _sit_bling(x: dict) -> str:
+    from marketplaces.expedicao import bling_checkout
+    sit = x.get('situacao') or {}
+    return bling_checkout.SITUACOES.get(sit.get('id')) or sit.get('valor') or 'situação ?'
 
 
 def _achar_bling(numero: str) -> list:
@@ -190,6 +204,11 @@ def reclamacao(u, numero=None, conta=None, **_):
         st, ped = api.get(f"/orders/{numero}")
         if st != 200 or not isinstance(ped, dict):
             continue
+        try:
+            bl = [f"{b} nº {x.get('numero')} ({_sit_bling(x)})" for b, x in _achar_bling(str(numero).strip())]
+        except Exception:
+            bl = []
+        texto.append(f"Pedido {numero} ({c}) - no Bling: " + (", ".join(bl) if bl else "não encontrado"))
         st, r = api.get("/post-purchase/v1/claims/search", resource_id=str(numero), resource="order")
         claims = (r or {}).get("data") if st == 200 and isinstance(r, dict) else []
         if not claims:
