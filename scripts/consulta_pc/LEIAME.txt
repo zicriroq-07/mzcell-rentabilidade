@@ -1,0 +1,19 @@
+CONSULTA MZ
+
+Como usar
+1. Extraia esta pasta no computador (por exemplo, C:\ConsultaMZ).
+2. Dê duplo clique em Consulta-MZ.bat.
+3. Digite sua pergunta em português e aperte Enter.
+
+Exemplos
+  quantos checkouts tenho em aberto?
+  resumo da expedição de hoje
+  situação do pedido 2000012345678901
+  estoque do KIT2-MIC-SEMFIO-PRETO
+  quais envios full estão em montagem?
+  qual a reclamação do pedido 2000012345678901?
+
+Digite "ajuda" para ver tudo que dá para consultar e "sair" para fechar.
+
+Só funciona dentro da rede da empresa e só consulta: não altera nada.
+Se aparecer erro de servidor, confira se o PC servidor está ligado.

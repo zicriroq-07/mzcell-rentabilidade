@@ -5,6 +5,7 @@
 
   Copie só este arquivo para o PC e já pode perguntar:
   Depois:
+    .\mz-consulta.ps1 interativo                                         (tela de perguntas; é o que o Consulta-MZ.bat abre)
     .\mz-consulta.ps1 perguntar "quantos checkouts tenho em aberto?"     (pergunta em português, sem IA)
     .\mz-consulta.ps1 perguntar "qual a reclamação do pedido 2000012345678901?"
     .\mz-consulta.ps1 consultas                                          (o que o seu acesso permite)
@@ -71,6 +72,24 @@ switch ($Comando.ToLower()) {
     }
     "sair" { Remove-Item $ArqToken -ErrorAction SilentlyContinue; Write-Host "Sessão encerrada." }
     "consultas" { Chamar "/consulta/consultas" | ForEach-Object { Write-Host ("{0,-18} {1}`n{2,-18} ex.: {3}" -f $_.id, $_.titulo, "", $_.exemplo) } }
+    "interativo" {
+        # tela da Consulta MZ: o funcionário digita a pergunta, sem comandos
+        [Console]::InputEncoding = [Text.Encoding]::UTF8
+        $Host.UI.RawUI.WindowTitle = "Consulta MZ"
+        try { Invoke-RestMethod "$Servidor/sistema/versao" -TimeoutSec 5 | Out-Null }
+        catch { Write-Host "Não consegui falar com o servidor ($Servidor). Confira se o PC servidor está ligado e se este PC está na rede da empresa." -ForegroundColor Red; Read-Host "Enter para fechar" | Out-Null; return }
+        Write-Host "CONSULTA MZ" -ForegroundColor Green
+        Write-Host "Digite sua pergunta e aperte Enter. Exemplos: quantos checkouts tenho em aberto? | situação do pedido 2000012345678901"
+        Write-Host "Digite 'ajuda' para ver tudo que dá para consultar e 'sair' para fechar."
+        while ($true) {
+            $t = Read-Host "`nPergunta"
+            if ($null -eq $t) { break }
+            $t = $t.Trim()
+            if (-not $t) { continue }
+            if ($t -in "sair", "fechar", "exit") { break }
+            try { Mostrar (Chamar "/consulta/perguntar" @{ texto = $t }) } catch { Write-Host "Não consegui responder: $_" -ForegroundColor Red }
+        }
+    }
     "ajuda" { Mostrar (Chamar "/consulta/executar/ajuda") }
     "perguntar" { Mostrar (Chamar "/consulta/perguntar" @{ texto = ($Resto -join " ") }) }
     "executar" { Mostrar (Chamar "/consulta/executar/$($Resto[0])" $Parametros) }
