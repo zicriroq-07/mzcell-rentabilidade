@@ -20,7 +20,7 @@ import time
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse
 
-from marketplaces.consulta import acesso, banco, interprete
+from marketplaces.consulta import acesso, banco, interprete, livre
 from marketplaces.consulta.catalogo import CATALOGO
 from marketplaces.consulta.executores import BLINGS, EXECUTORES, MELIS
 
@@ -86,6 +86,21 @@ def perguntar(texto: str, u: dict = Depends(acesso.usuario_atual)):
         c = next(x for x in permitidas if x["id"] == r["consulta"])
         return {"entendi": True, "consulta": r["consulta"], "texto": [f"{c['titulo']}: falta informar {', '.join(r['faltam'])}.", f"Exemplo: {c['exemplo']}"], "faltam": r["faltam"]}
     return dict(_rodar(u, r["consulta"], r["params"], texto), entendi=True)
+
+
+@router.get("/livre")
+def livre_(texto: str, u: dict = Depends(acesso.usuario_atual)):
+    """Pergunta livre: o assistente do servidor escolhe as consultas (só leitura, validadas aqui) e resume a resposta."""
+    permitidas = [c for c in banco.consultas() if acesso.pode(u, c["modulos"])]
+    inicio = time.time()
+    status = 200
+    try:
+        return livre.perguntar(u, texto, permitidas, lambda cid, params: _rodar(u, cid, params, texto))
+    except HTTPException as e:
+        status = e.status_code
+        raise
+    finally:
+        banco.registrar_uso(u["login"], u["origem"], "livre", {}, texto, status, int((time.time() - inicio) * 1000))
 
 
 @router.get("/executar/{consulta_id}")

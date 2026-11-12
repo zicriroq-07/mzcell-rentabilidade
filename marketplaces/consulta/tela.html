@@ -137,7 +137,14 @@
       if (campo2.value.trim().length < 10) { mostrar("PEDIDO DE CONSULTA", ["Descreva melhor o que você precisa (mínimo 10 letras)."], true); return; }
       consultar("PEDIDO DE CONSULTA", "/consulta/solicitar", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ nome: v, texto: campo2.value.trim() }) });
     } else if (atual.pergunta) {
-      if (v) consultar("RESPOSTA", "/consulta/perguntar?texto=" + encodeURIComponent(v));
+      if (!v) return;
+      mostrar("RESPOSTA", "Consultando...");
+      // primeiro as consultas cadastradas (instantâneo); se não entender, tenta a pergunta livre (alguns segundos)
+      chamar("/consulta/perguntar?texto=" + encodeURIComponent(v)).then(function (j) {
+        if (j.entendi) { mostrar("RESPOSTA", j.texto); return; }
+        mostrar("RESPOSTA", "Pensando... pode levar alguns segundos.");
+        return chamar("/consulta/livre?texto=" + encodeURIComponent(v)).then(function (l) { mostrar("RESPOSTA", l.texto); });
+      }).catch(function (e) { mostrar("RESPOSTA", ["Não foi possível responder:", "  " + e.message], true); });
     } else if (v || atual.opcional) {
       var q = v ? "?" + atual.param + "=" + encodeURIComponent(atual.param === "plataforma" ? v.toLowerCase() : v) : "";
       consultar(t + (v ? " " + v.toUpperCase() : ""), "/consulta/executar/" + atual.id + q);
