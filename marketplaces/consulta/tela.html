@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Consulta MZ</title>
+<title>Terminal MZ</title>
 <style>
   :root {
     --bg: #0a0a0f; --bg2: #111118; --bg3: #1a1a24; --bg4: #22222e; --borda: rgba(255,255,255,.07); --borda2: rgba(255,255,255,.12);
@@ -72,20 +72,27 @@
 </head>
 <body>
 <nav class="lateral">
-  <div class="logo"><b>MZ</b><span>Consulta<small>MZ App</small></span></div>
+  <div class="logo"><b>MZ</b><span>Terminal<small>MZ App</small></span></div>
   <div class="grupo">Consultas</div>
   <div id="menu"></div>
   <div class="grupo">Solicitações</div>
   <div id="menu2"></div>
 </nav>
 <div class="principal">
-  <div class="topo"><h1 id="tituloPagina">Consulta</h1><span class="relogio" id="relogio"></span></div>
+  <div class="topo"><h1 id="tituloPagina">Terminal MZ</h1><span class="linha"><span class="relogio" id="relogio"></span><button class="btn2" id="botaoEntrar" type="button">Entrar</button></span></div>
   <div class="conteudo">
     <form class="busca" id="formPergunta">
       <input id="pergunta" autocomplete="off" placeholder="Pergunte em português, ex.: envios flex atrasados na meli03" aria-label="Sua pergunta">
       <button class="btn" id="botaoPerguntar" type="submit">Perguntar</button>
     </form>
     <div class="dicas" id="sugestoes">Exemplos: </div>
+
+    <form class="filtro" id="painelLogin" autocomplete="off">
+      <label for="loginU">Usuário do MZ App</label><input id="loginU" autocomplete="username">
+      <label for="loginS">Senha</label><input id="loginS" type="password" autocomplete="current-password">
+      <div class="linha"><button class="btn" type="submit" style="padding:8px 18px">Entrar</button><button type="button" class="btn2" id="loginFechar">Cancelar</button></div>
+      <p class="dicas" id="loginMsg">Com login você usa as perguntas livres completas, dentro do seu acesso. Sem login vale o acesso da rede interna.</p>
+    </form>
 
     <div class="filtro" id="painelCampo">
       <label id="rotulo" for="campo"></label><input id="campo" autocomplete="off">
@@ -117,7 +124,17 @@
   ];
   var SUGESTOES = ["quantos checkouts tenho em aberto?", "envios flex atrasados na meli03", "resumo da expedição de hoje", "quais envios full estão em montagem?"];
   var $ = function (id) { return document.getElementById(id); };
-  var atual = null, ultimaTabela = null, pendente = null, ciclo = 0;
+  var atual = null, ultimaTabela = null, pendente = null, ciclo = 0, token = null;
+  try { token = sessionStorage.getItem("mz-token"); } catch (e) {}
+  function cabecalho(o) {
+    o = o || {};
+    if (token) o.headers = Object.assign({}, o.headers, { Authorization: "Bearer " + token });
+    return o;
+  }
+  function estadoLogin(nome) {
+    $("botaoEntrar").textContent = token ? "Sair" + (nome ? " (" + nome + ")" : "") : "Entrar";
+  }
+  estadoLogin();
 
   function relogio() {
     var d = new Date(), p = function (n) { return ("0" + n).slice(-2); };
@@ -125,13 +142,13 @@
   }
   relogio(); setInterval(relogio, 30000);
 
-  // uma consulta por vez: pedir outra cancela a que ficou pendente; nenhuma espera mais de 2 minutos
+  // uma consulta por vez: pedir outra cancela a que ficou pendente; nenhuma espera mais de 5 minutos
   function chamar(url, opcoes) {
     if (pendente) pendente.abort();
     var ctl = new AbortController(), meu = ++ciclo;
     pendente = ctl;
-    var tempo = setTimeout(function () { ctl.abort(); }, 120000);
-    opcoes = Object.assign({}, opcoes, { signal: ctl.signal });
+    var tempo = setTimeout(function () { ctl.abort(); }, 300000);
+    opcoes = cabecalho(Object.assign({}, opcoes, { signal: ctl.signal }));
     var fim = function () { clearTimeout(tempo); if (pendente === ctl) pendente = null; };
     return fetch(url, opcoes).then(function (r) {
       return r.text().then(function (txt) {
@@ -281,6 +298,20 @@
     $("sugestoes").appendChild(a);
   });
   $("formPergunta").addEventListener("submit", function (e) { e.preventDefault(); var v = $("pergunta").value.trim(); if (v) perguntar(v); });
+  $("botaoEntrar").addEventListener("click", function () {
+    if (token) { token = null; try { sessionStorage.removeItem("mz-token"); } catch (e) {} estadoLogin(); return; }
+    $("painelLogin").style.display = "block"; $("loginU").focus();
+  });
+  $("loginFechar").addEventListener("click", function () { $("painelLogin").style.display = "none"; });
+  $("painelLogin").addEventListener("submit", function (e) {
+    e.preventDefault();
+    fetch("/consulta/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ login: $("loginU").value.trim(), senha: $("loginS").value }) })
+      .then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.detail || "não foi possível entrar"); return j; }); })
+      .then(function (j) {
+        token = j.token; try { sessionStorage.setItem("mz-token", token); } catch (x) {}
+        $("loginS").value = ""; $("painelLogin").style.display = "none"; estadoLogin(j.nome);
+      }).catch(function (x) { $("loginMsg").textContent = "Não foi possível entrar: " + x.message; });
+  });
   $("ok").addEventListener("click", enviar);
   $("fechar").addEventListener("click", function () { $("painelCampo").style.display = "none"; });
   $("campo").addEventListener("keydown", function (e) { if (e.key === "Enter" && !(atual && atual.pedido)) enviar(); });

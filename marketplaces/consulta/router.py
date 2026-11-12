@@ -95,7 +95,8 @@ def livre_(texto: str, u: dict = Depends(acesso.usuario_atual)):
     inicio = time.time()
     status = 200
     try:
-        return livre.perguntar(u, texto, permitidas, lambda cid, params: _rodar(u, cid, params, texto))
+        return livre.perguntar(u, texto, permitidas, lambda cid, params: _rodar(u, cid, params, texto),
+                               None if u.get("anonimo") else (lambda fonte, conta, recurso, params: ler(u, fonte, conta, recurso, params)))
     except HTTPException as e:
         status = e.status_code
         raise
@@ -121,39 +122,58 @@ def _leitura(u, liberado: dict, recurso: str, quem: str):
     raise HTTPException(status_code=403, detail=f"recurso não liberado para consulta no {quem}: libera " + ", ".join(sorted(liberado)))
 
 
+AMAZON_LIBERADO = {"fba/inventory/v1/summaries": ("amazon",), "catalog/2022-04-01/items": ("amazon",), "orders/v0/orders": ("amazon",)}
+
+
+def ler(u: dict, fonte: str, conta: str, recurso: str, params: dict):
+    """Leitura direta (só GET) do Bling, do Mercado Livre ou da Amazon, com a mesma permissão por recurso. Exige login."""
+    acesso.exigir_login(u)
+    inicio = time.time()
+    if fonte == "bling":
+        if conta not in BLINGS:
+            raise HTTPException(status_code=400, detail="conta inválida (bling01, bling02 ou bling03)")
+        _leitura(u, BLING_LIBERADO, recurso, "Bling")
+        from marketplaces.bling import api as bling
+        st, res = bling.get(conta, "/" + recurso.strip("/"), **params)
+        nome = "Bling"
+    elif fonte == "ml":
+        if conta not in MELIS:
+            raise HTTPException(status_code=400, detail="conta inválida (meli01, meli02 ou meli03)")
+        _leitura(u, ML_LIBERADO, recurso, "Mercado Livre")
+        from reposicao_full import ML
+        import ml_api
+        params = {k: (str(ml_api.get_seller_id(conta)) if v == "{seller}" else v) for k, v in params.items()}
+        st, res = ML(conta).get("/" + recurso.strip("/"), **params)
+        nome = "Mercado Livre"
+    elif fonte == "amazon":
+        if conta not in ("amazon01", "amazon02"):
+            raise HTTPException(status_code=400, detail="conta inválida (amazon01 ou amazon02)")
+        _leitura(u, AMAZON_LIBERADO, recurso, "Amazon")
+        from marketplaces.amazon import api as amz
+        mk = amz.conta_cfg(conta).get("marketplace_id") or amz.MARKETPLACE_BR
+        params = {k: (mk if v == "{marketplace}" else v) for k, v in params.items()}
+        st, res = amz.get(conta, "/" + recurso.strip("/"), **params)
+        nome = "Amazon"
+    else:
+        raise HTTPException(status_code=400, detail="fonte inválida")
+    banco.registrar_uso(u["login"], u["origem"], f"{fonte}/{conta}/{recurso}", params, "", st, int((time.time() - inicio) * 1000))
+    if st != 200:
+        raise HTTPException(status_code=st if st in (400, 404, 429) else 502, detail=f"{nome} respondeu {st}: {str(res)[:200]}")
+    return res
+
+
 @router.get("/bling/{conta}/{recurso:path}")
 def bling_leitura(conta: str, recurso: str, request: Request, u: dict = Depends(acesso.usuario_atual)):
-    acesso.exigir_login(u)
-    if conta not in BLINGS:
-        raise HTTPException(status_code=400, detail="conta inválida (bling01, bling02 ou bling03)")
-    _leitura(u, BLING_LIBERADO, recurso, "Bling")
-    from marketplaces.bling import api as bling
     params = {}
     for k, v in request.query_params.multi_items():
         params.setdefault(k, []).append(v)
     params = {k: (v if k.endswith("[]") else v[0]) for k, v in params.items()}
-    inicio = time.time()
-    st, r = bling.get(conta, "/" + recurso.strip("/"), **params)
-    banco.registrar_uso(u["login"], u["origem"], f"bling/{conta}/{recurso}", params, "", st, int((time.time() - inicio) * 1000))
-    if st != 200:
-        raise HTTPException(status_code=st if st in (400, 404, 429) else 502, detail=f"Bling respondeu {st}: {str(r)[:200]}")
-    return r
+    return ler(u, "bling", conta, recurso, params)
 
 
 @router.get("/ml/{conta}/{recurso:path}")
 def ml_leitura(conta: str, recurso: str, request: Request, u: dict = Depends(acesso.usuario_atual)):
-    acesso.exigir_login(u)
-    if conta not in MELIS:
-        raise HTTPException(status_code=400, detail="conta inválida (meli01, meli02 ou meli03)")
-    _leitura(u, ML_LIBERADO, recurso, "Mercado Livre")
-    from reposicao_full import ML
-    params = dict(request.query_params)
-    inicio = time.time()
-    st, r = ML(conta).get("/" + recurso.strip("/"), **params)
-    banco.registrar_uso(u["login"], u["origem"], f"ml/{conta}/{recurso}", params, "", st, int((time.time() - inicio) * 1000))
-    if st != 200:
-        raise HTTPException(status_code=st if st in (400, 404, 429) else 502, detail=f"Mercado Livre respondeu {st}: {str(r)[:200]}")
-    return r
+    return ler(u, "ml", conta, recurso, dict(request.query_params))
 
 
 @router.post("/solicitar")

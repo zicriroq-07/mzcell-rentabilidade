@@ -5,7 +5,7 @@
 
   Copie só este arquivo para o PC e já pode perguntar:
   Depois:
-    .\mz-consulta.ps1 interativo                                         (tela de perguntas; é o que o Consulta-MZ.bat abre)
+    .\mz-consulta.ps1 interativo                                         (tela de perguntas; é o que o Terminal-MZ.bat abre)
     .\mz-consulta.ps1 perguntar "quantos checkouts tenho em aberto?"     (pergunta em português, sem IA)
     .\mz-consulta.ps1 perguntar "qual a reclamação do pedido 2000012345678901?"
     .\mz-consulta.ps1 consultas                                          (o que o seu acesso permite)
@@ -40,7 +40,7 @@ function Chamar($Caminho, $Consulta = @{}) {
     $url = "$Servidor$Caminho" + $(if ($qs) { "?$qs" } else { "" })
     try {
         # o servidor responde em UTF-8 sem declarar o charset: o PowerShell 5.1 leria como Latin-1 e quebraria os acentos
-        $r = Invoke-WebRequest -Uri $url -Headers (Cabecalho) -TimeoutSec 120 -UseBasicParsing
+        $r = Invoke-WebRequest -Uri $url -Headers (Cabecalho) -TimeoutSec 300 -UseBasicParsing
         [Text.Encoding]::UTF8.GetString($r.RawContentStream.ToArray()) | ConvertFrom-Json
     } catch {
         $resp = $_.Exception.Response
@@ -89,7 +89,7 @@ function Logo {
 function Cabecalho-Tela($sub) {
     $Host.UI.RawUI.BackgroundColor = "Black"; Clear-Host
     Caixa-Topo; Caixa-Linha ""; Logo; Caixa-Linha ""
-    Caixa-Linha ("  C O N S U L T A   M Z     " + (Get-Date -Format "dd/MM/yyyy HH:mm")) "White"
+    Caixa-Linha ("  T E R M I N A L   M Z     " + (Get-Date -Format "dd/MM/yyyy HH:mm")) "White"
     Caixa-Meio
     if ($sub) { Caixa-Linha $sub "Yellow"; Caixa-Meio }
 }
@@ -194,7 +194,7 @@ function Avancada-Tela {
 }
 function Tela-Principal {
     [Console]::InputEncoding = [Text.Encoding]::UTF8
-    $Host.UI.RawUI.WindowTitle = "Consulta MZ"
+    $Host.UI.RawUI.WindowTitle = "Terminal MZ"
     try { Invoke-RestMethod "$Servidor/sistema/versao" -TimeoutSec 5 | Out-Null }
     catch { Write-Host "Não consegui falar com o servidor ($Servidor). Confira se o PC servidor está ligado e se este PC está na rede da empresa." -ForegroundColor Red; Read-Host "Enter para fechar" | Out-Null; return }
     while ($true) {
@@ -242,12 +242,12 @@ switch ($Comando.ToLower()) {
     "consultas" { $lista = Chamar "/consulta/consultas"; if ($lista.Count -eq 1 -and $lista[0] -is [array]) { $lista = $lista[0] }; $lista | ForEach-Object { Write-Host ("{0,-18} {1}`n{2,-18} ex.: {3}" -f $_.id, $_.titulo, "", $_.exemplo) } }
     "tela" { Tela-Principal }
     "interativo" {
-        # tela da Consulta MZ: o funcionário digita a pergunta, sem comandos
+        # tela da Terminal MZ: o funcionário digita a pergunta, sem comandos
         [Console]::InputEncoding = [Text.Encoding]::UTF8
-        $Host.UI.RawUI.WindowTitle = "Consulta MZ"
+        $Host.UI.RawUI.WindowTitle = "Terminal MZ"
         try { Invoke-RestMethod "$Servidor/sistema/versao" -TimeoutSec 5 | Out-Null }
         catch { Write-Host "Não consegui falar com o servidor ($Servidor). Confira se o PC servidor está ligado e se este PC está na rede da empresa." -ForegroundColor Red; Read-Host "Enter para fechar" | Out-Null; return }
-        Write-Host "CONSULTA MZ" -ForegroundColor Green
+        Write-Host "TERMINAL MZ" -ForegroundColor Green
         Write-Host "Digite sua pergunta e aperte Enter. Exemplos: quantos checkouts tenho em aberto? | situação do pedido 2000012345678901"
         Write-Host "Digite 'ajuda' para ver tudo que dá para consultar e 'sair' para fechar."
         while ($true) {

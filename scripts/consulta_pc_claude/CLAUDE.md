@@ -1,4 +1,4 @@
-# Consulta MZ — instruções para o Claude neste PC
+# Terminal MZ — instruções para o Claude neste PC
 
 Este PC só **consulta** o MZ App (Expedição, Bling, Mercado Livre, SAC). Você não altera nada, não escreve em Bling, ML ou Amazon e não edita arquivos.
 

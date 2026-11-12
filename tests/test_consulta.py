@@ -90,7 +90,7 @@ class RedeInterna(Base):
         self.interno()
         r = self.c.get("/consulta/tela")
         self.assertEqual(r.status_code, 200)
-        self.assertIn("Consulta MZ", r.text)
+        self.assertIn("Terminal MZ", r.text)
         self.assertNotIn("claude", r.text.lower())      # o funcionário não vê menção ao Claude
         self.interno(False)
         self.assertEqual(self.c.get("/consulta/tela").status_code, 401)
@@ -200,7 +200,7 @@ class PerguntaLivre(Base):
         self.pedidos = []
         def falso(sistema, prompt):
             self.pedidos.append(prompt)
-            return plano if sistema == livre.SISTEMA_PLANO else resumo
+            return plano if sistema.startswith(livre.SISTEMA_PLANO) else resumo
         p = mock.patch.object(livre, "_claude", falso); p.start(); self.addCleanup(p.stop)
         p = mock.patch.dict(rt.EXECUTORES, {"checkout_abertos": lambda u, **k: {"texto": ["3 sem checkout"], "dados": k},
                                             "pedido": lambda u, **k: {"texto": ["pedido " + k["numero"]], "dados": k},
@@ -227,6 +227,67 @@ class PerguntaLivre(Base):
         self.assertEqual(r["consultas"], [{"consulta": "checkout_abertos", "parametros": {}}])
         self.assertEqual(recebidos, [{}])
 
+    def test_leitura_direta_valida_so_com_login_e_formato_fixo(self):
+        plano = ('{"chamadas":[{"leitura":{"fonte":"bling","conta":"bling03","recurso":"pedidos/vendas","params":{"numero":"123456","limite":"5"}}},'
+                 '{"leitura":{"fonte":"bling","conta":"bling03","recurso":"../config","params":{}}},'
+                 '{"leitura":{"fonte":"bling","conta":"bling01","recurso":"produtos","params":{"nome":"a; rm -rf","limite":"3"}}}],"motivo":""}')
+        v = livre.validar_plano(plano, [], leitura=True)
+        self.assertEqual([(x["conta"], x["recurso"], x["params"]) for x in v["leituras"]],
+                         [("bling03", "pedidos/vendas", {"numero": "123456", "limite": "5"}), ("bling01", "produtos", {"limite": "3"})])
+        self.assertEqual(livre.validar_plano(plano, [], leitura=False)["leituras"], [])     # sem login a leitura direta nem é oferecida
+
+    def test_leitura_direta_respeita_a_alcada_do_modulo(self):
+        self.assistente('{"chamadas":[{"leitura":{"fonte":"bling","conta":"bling01","recurso":"contatos","params":{}}}],"motivo":""}')
+        with mock.patch("marketplaces.bling.api.get") as g:
+            r = self.livre("exp", "me dá os contatos do bling 1").json()
+        g.assert_not_called()                 # expedição não lê contatos: a leitura é recusada antes de chegar ao Bling
+        self.assertIn("Esta leitura falhou", self.pedidos[1])
+
+    def test_leitura_direta_sem_acesso_total_nao_leva_dados_pessoais(self):
+        self.assistente('{"chamadas":[{"leitura":{"fonte":"bling","conta":"bling03","recurso":"pedidos/vendas","params":{"numero":"123456"}}}],"motivo":""}')
+        dado = {"data": [{"numero": 123456, "total": 57.7, "contato": {"nome": "Fulana de Tal", "numeroDocumento": "11122233344"}}]}
+        with mock.patch("marketplaces.bling.api.get", return_value=(200, dado)):
+            self.livre("exp", "pedido 123456 no bling 3")
+        self.assertIn("57.7", self.pedidos[1])
+        self.assertNotIn("Fulana", self.pedidos[1])
+        self.assertNotIn("11122233344", self.pedidos[1])
+
+    def test_acesso_total_trabalha_em_rodadas_e_so_le(self):
+        u = {"login": "zicri", "origem": "x", "modulos": ["todos"], "anonimo": False}
+        respostas = iter(['{"chamadas":[{"leitura":{"fonte":"bling","conta":"bling01","recurso":"pedidos/vendas","params":{"numero":"123456"}}}],"motivo":"a"}',
+                          '{"chamadas":[{"leitura":{"fonte":"bling","conta":"bling01","recurso":"situacoes","params":{}}}],"motivo":"b"}',
+                          '{"resposta":"O pedido 123456 está em aberto."}'])
+        prompts = []
+        def falso(sistema, prompt, modelo=None, timeout=None):
+            prompts.append((sistema, prompt, modelo))
+            return next(respostas)
+        lidas = []
+        with mock.patch.object(livre, "_claude", falso):
+            r = livre.agente(u, "como está o pedido 123456?", [], lambda *a: {}, lambda f, c, rec, p: lidas.append(rec) or {"data": [rec]})
+        self.assertEqual(r["texto"], ["O pedido 123456 está em aberto."])
+        self.assertEqual(lidas, ["pedidos/vendas", "situacoes"])
+        self.assertIn("pedidos/vendas", prompts[1][1])           # o que a rodada 1 trouxe volta para o assistente na rodada 2
+        self.assertEqual({p[2] for p in prompts}, {livre.MODELO_AGENTE})
+
+    def test_acesso_total_para_depois_das_rodadas(self):
+        u = {"login": "zicri", "origem": "x", "modulos": ["todos"], "anonimo": False}
+        chamadas = []
+        def falso(sistema, prompt, modelo=None, timeout=None):
+            chamadas.append(1)
+            return '{"chamadas":[{"leitura":{"fonte":"bling","conta":"bling01","recurso":"produtos","params":{}}}],"motivo":"mais"}' if sistema == livre.SISTEMA_AGENTE else "resumo final"
+        with mock.patch.object(livre, "_claude", falso):
+            r = livre.agente(u, "faça algo sem fim", [], lambda *a: {}, lambda *a: {"data": []})
+        self.assertLessEqual(len(chamadas), livre.RODADAS_AGENTE + 1)
+        self.assertEqual(r["texto"], ["resumo final"])
+
+    def test_leitura_direta_executa_dentro_da_alcada(self):
+        self.assistente('{"chamadas":[{"leitura":{"fonte":"bling","conta":"bling03","recurso":"pedidos/vendas","params":{"numero":"123456"}}}],"motivo":""}')
+        with mock.patch("marketplaces.bling.api.get", return_value=(200, {"data": [{"numero": 123456}]})) as g:
+            r = self.livre("exp", "pedido 123456 no bling 3").json()
+        self.assertTrue(r["entendi"])
+        g.assert_called_once()
+        self.assertIn("123456", self.pedidos[1])
+
     def test_so_as_consultas_do_acesso_do_usuario(self):
         self.assistente('{"chamadas":[{"consulta":"reclamacao","params":{"numero":"2000012345678901"}}],"motivo":"sem acesso"}')
         r = self.livre("exp", "qual a reclamação do pedido 2000012345678901").json()     # expedição não tem a consulta de SAC
@@ -241,7 +302,7 @@ class PerguntaLivre(Base):
     def test_sem_o_resumo_entrega_o_texto_das_consultas(self):
         self.assistente('{"chamadas":[{"consulta":"checkout_abertos","params":{}}]}')
         def falso(sistema, prompt):
-            if sistema == livre.SISTEMA_PLANO:
+            if sistema.startswith(livre.SISTEMA_PLANO):
                 return '{"chamadas":[{"consulta":"checkout_abertos","params":{}}]}'
             raise rt.HTTPException(status_code=503, detail="fora")
         with mock.patch.object(livre, "_claude", falso):

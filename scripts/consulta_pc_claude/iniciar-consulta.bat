@@ -1,6 +1,6 @@
 @echo off
 chcp 65001 >nul
-title Consulta MZ
+title Terminal MZ
 REM Abre o Claude Code na pasta de consulta (somente leitura). Nao ha senha aqui: a rede interna entra direto.
 REM Servidor: edite a linha abaixo se o IP do PC servidor mudar.
 set MZ_SERVIDOR=http://192.168.15.200:8001
@@ -28,5 +28,5 @@ if errorlevel 1 (
   exit /b 1
 )
 
-echo Consulta MZ pronta. Pergunte em portugues, por exemplo: quantos checkouts tenho em aberto?
+echo Terminal MZ pronta. Pergunte em portugues, por exemplo: quantos checkouts tenho em aberto?
 %CLAUDE%

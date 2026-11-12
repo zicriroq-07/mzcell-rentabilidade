@@ -36,7 +36,7 @@ claude
 O navegador abre para o login. Entre com a **conta da empresa** e volte ao PowerShell. Esse login fica salvo neste PC: nas próximas vezes não pede de novo.
 
 ## 5. Usar a consulta
-1. Extraia o `consulta-mz.zip` numa pasta (por exemplo, `C:\ConsultaMZ`).
+1. Extraia o `terminal-mz.zip` numa pasta (por exemplo, `C:\TerminalMZ`).
 2. Dê duplo clique em `iniciar-consulta.bat`.
 3. Pergunte em português, por exemplo: *quantos checkouts tenho em aberto?*
 

@@ -291,6 +291,35 @@ def envios_atrasados(u, conta=None, canal=None, dias=15, **_):
     return {"texto": texto, "dados": {"total": len(itens), "envios": itens, "pendentes_de_leitura": avisos}}
 
 
+_amazon_cache = {}
+
+
+def amazon_estoque(u, conta=None, busca=None, **_):
+    """Estoque FBA da Amazon por ASIN (disponível e a caminho). 'busca' filtra por parte do título, SKU ou ASIN."""
+    import time
+    from marketplaces.amazon import api as amz
+    from marketplaces.consulta.interprete import normalizar
+    contas = [conta] if conta in ("amazon01", "amazon02") else ["amazon01", "amazon02"]
+    texto, dados = [], []
+    termos = normalizar(busca).split() if busca else []
+    for c in contas:
+        try:
+            hit = _amazon_cache.get(c)
+            if not hit or time.time() - hit[0] > 1800:
+                _amazon_cache[c] = hit = (time.time(), amz.estoque_fba(c))
+            itens = hit[1]
+        except Exception as e:
+            texto.append(f"{c}: sem leitura ({type(e).__name__}: {str(e)[:100]})")
+            continue
+        if termos:
+            itens = [i for i in itens if all(t in normalizar(f"{i.get('titulo')} {i.get('sku')} {i.get('asin')}") for t in termos)]
+        texto.append(f"{c}: {len(itens)} ASIN(s)" + (f" com '{busca}'" if busca else "") + " no estoque FBA.")
+        for i in sorted(itens, key=lambda i: -(i.get("estoque_valido") or 0))[:30]:
+            texto.append(f"  {i.get('asin')}  disp {i.get('disponivel')}  a caminho {i.get('em_transito')}  {str(i.get('sku'))[:28]}  {str(i.get('titulo'))[:60]}")
+        dados.append({"conta": c, "itens": itens})
+    return {"texto": texto or ["Sem dados."], "dados": dados}
+
+
 def ajuda(u, **_):
     from marketplaces.consulta import banco
     from marketplaces.consulta.acesso import pode
@@ -301,4 +330,4 @@ def ajuda(u, **_):
 
 EXECUTORES = {"checkout_abertos": checkout_abertos, "expedicao_resumo": expedicao_resumo, "full_envios": full_envios,
               "cancelamentos": cancelamentos, "pedido": pedido, "estoque": estoque, "sac_resumo": sac_resumo,
-              "reclamacao": reclamacao, "envios_atrasados": envios_atrasados, "ajuda": ajuda}
+              "reclamacao": reclamacao, "envios_atrasados": envios_atrasados, "amazon_estoque": amazon_estoque, "ajuda": ajuda}

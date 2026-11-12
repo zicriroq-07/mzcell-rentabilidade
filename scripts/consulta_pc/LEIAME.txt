@@ -1,13 +1,13 @@
-﻿CONSULTA MZ
+﻿TERMINAL MZ
 
 Instalação simples (recomendado)
-1. Dê duplo clique em Instalar-Consulta-MZ.bat (uma vez só, em cada computador).
-2. Use o atalho "Consulta MZ" que aparece na área de trabalho. Abre uma janela moderna, como um programa.
+1. Dê duplo clique em Instalar-Terminal-MZ.bat (uma vez só, em cada computador).
+2. Use o atalho "Terminal MZ" que aparece na área de trabalho. Abre uma janela moderna, como um programa.
    Escreva a pergunta no campo de cima ou clique em uma das consultas prontas.
 
 Versão no terminal (opcional)
-1. Extraia esta pasta no computador (por exemplo, C:\ConsultaMZ).
-2. Dê duplo clique em Consulta-MZ.bat.
+1. Extraia esta pasta no computador (por exemplo, C:\TerminalMZ).
+2. Dê duplo clique em Terminal-MZ.bat.
 3. Digite o número da opção do menu (1 a 8) e aperte Enter. Algumas pedem um dado, como o número do pedido ou o SKU.
    Para escrever uma pergunta livre em português, escolha P.
 
