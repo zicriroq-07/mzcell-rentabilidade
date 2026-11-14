@@ -69,14 +69,29 @@ def _ler_tokens() -> dict:
 def _gravar_token(env_nome: str, shop_id: int, dados: dict):
     todos = _ler_tokens()
     agora = int(time.time())
+    anterior = todos.get(env_nome, {}).get(str(shop_id), {})
     todos.setdefault(env_nome, {})[str(shop_id)] = {
         "access_token": dados["access_token"],
         "refresh_token": dados["refresh_token"],
         "expires_at": agora + int(dados.get("expire_in", 14400)) - 300,
         "saved_at": agora,
+        **({"autorizacao_expira": anterior["autorizacao_expira"]} if "autorizacao_expira" in anterior else {}),
     }
     tmp = TOKENS_PATH + ".tmp"
     with open(tmp, "w", encoding="utf-8") as f:   # grava inteiro e troca: nunca deixa o arquivo pela metade
+        json.dump(todos, f, indent=2)
+    os.replace(tmp, TOKENS_PATH)
+
+
+def registrar_validade_autorizacao(env_nome: str, shop_id: int, epoch: int):
+    """Guarda a data em que a autorização da loja vence (get_shop_info.expire_time, ~365 dias)."""
+    todos = _ler_tokens()
+    reg = todos.get(env_nome, {}).get(str(shop_id))
+    if not reg or not epoch:
+        return
+    reg["autorizacao_expira"] = int(epoch)
+    tmp = TOKENS_PATH + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
         json.dump(todos, f, indent=2)
     os.replace(tmp, TOKENS_PATH)
 
@@ -184,6 +199,10 @@ def janelas(de: datetime, ate: datetime, dias: int = JANELA_DIAS):
 def info_loja(shop_id: int, env: dict = None) -> dict:
     """get_shop_info, só com campos não sensíveis."""
     r = chamar("/api/v2/shop/get_shop_info", shop_id, env=env)
+    try:
+        registrar_validade_autorizacao(lojas.ambiente(env if env is not None else lojas.ler_env()), shop_id, r.get("expire_time"))
+    except ErroShopee:
+        pass
     return {k: r.get(k) for k in ("shop_name", "region", "status", "expire_time", "is_cb", "is_sip") if k in r}
 
 
@@ -206,5 +225,16 @@ def estado_autorizacao(shop_id: int, env: dict = None, agora: float = None) -> d
         nivel, msg = "amarelo", f"Autorização expira em {dias:.0f} dias."
     else:
         nivel, msg = "ok", "Autorização em dia."
+    extra = {}
+    if t.get("autorizacao_expira"):
+        vence = datetime.fromtimestamp(t["autorizacao_expira"])
+        d365 = ((vence - (datetime.fromtimestamp(agora) if agora else datetime.now())).total_seconds()) / 86400
+        extra = {"autorizacao_vence_em": vence.date().isoformat(), "autorizacao_dias_restantes": round(d365)}
+        if d365 <= 0:
+            nivel, msg = "vermelho", "Autorização anual vencida. Refaça a autorização da loja."
+        elif d365 <= 7 and nivel != "vermelho":
+            nivel, msg = "vermelho", f"Autorização anual vence em {d365:.0f} dias. Refaça a autorização."
+        elif d365 <= 30 and nivel == "ok":
+            nivel, msg = "amarelo", f"Autorização anual vence em {d365:.0f} dias ({vence:%d/%m/%Y})."
     return {"autorizada": dias > 0, "nivel": nivel, "dias_restantes": round(dias, 1),
-            "expira_em": expira.isoformat(timespec="minutes"), "mensagem": msg}
+            "expira_em": expira.isoformat(timespec="minutes"), "mensagem": msg, **extra}

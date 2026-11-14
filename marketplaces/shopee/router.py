@@ -65,7 +65,11 @@ def receber_codigo(loja: str, corpo: CodigoAutorizacao):
 def retorno_autorizacao(code: str, shop_id: int):
     """Destino do redirect da Shopee (SHOPEE_REDIRECT_URL = http://127.0.0.1:8001/shopee/retorno)."""
     try:
-        if shop_id not in {v["shop_id"] for v in lojas.lojas().values()}:
+        cadastradas = lojas.lojas()
+        if not cadastradas:
+            # Primeira autorização: ainda não há loja cadastrada; registra a Techseller com o shop_id do retorno.
+            lojas.cadastrar("techseller", "Techseller", shop_id)
+        elif shop_id not in {v["shop_id"] for v in cadastradas.values()}:
             raise ErroShopee("esse shop_id não é de nenhuma loja cadastrada em shopee_lojas.json", 400)
         api.trocar_codigo(code, shop_id)
     except ErroShopee as e:

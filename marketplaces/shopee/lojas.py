@@ -95,6 +95,18 @@ def lojas(env: dict = None, caminho: str = None) -> dict:
     return {}
 
 
+def cadastrar(loja: str, nome: str, shop_id: int, caminho: str = None):
+    """Grava a loja em shopee_lojas.json (cria o arquivo se não existir; preserva as outras lojas)."""
+    caminho = caminho or LOJAS_PATH
+    dados = {}
+    if os.path.exists(caminho):
+        with open(caminho, encoding="utf-8") as f:
+            dados = json.load(f)
+    dados[loja] = {"nome": nome, "shop_id": int(shop_id)}
+    with open(caminho, "w", encoding="utf-8") as f:
+        json.dump(dados, f, ensure_ascii=False, indent=2)
+
+
 def shop_id_da(loja: str, env: dict = None, caminho: str = None) -> int:
     todas = lojas(env, caminho)
     if loja not in todas:
