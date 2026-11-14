@@ -165,3 +165,4 @@ carga_estado.json
 # Varredura de cancelados/devolvidos do ML (dados de pedidos)
 varredura_ml/
 sonda_shopee.json
+sonda_shopee_extra.json
