@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Shopee · Techseller — Painel de teste</title>
+<style>
+:root{--grafite:#2b2f33;--verde:#166534;--ambar:#854d0e;--verm:#991b1b;--borda:#d9dde1;--fundo:#f6f7f8;--txt:#1f2937;--suave:#6b7280}
+*{box-sizing:border-box}
+body{margin:0;font:14px/1.4 "Segoe UI",Arial,sans-serif;background:var(--fundo);color:var(--txt)}
+header{background:var(--grafite);color:#fff;padding:12px 24px;display:flex;align-items:center;gap:16px;flex-wrap:wrap;position:sticky;top:0;z-index:5}
+header h1{font-size:17px;margin:0;font-weight:600}
+header .sp{flex:1}
+select,button{font:inherit;padding:6px 12px;border-radius:6px;border:1px solid #9ca3af;background:#fff;color:var(--txt)}
+button{cursor:pointer;background:var(--verde);border-color:var(--verde);color:#fff}
+button:disabled{opacity:.5;cursor:wait}
+#prog{font-size:12px;color:#d1d5db}
+main{padding:20px 24px;max-width:1500px;margin:auto}
+h2{font-size:15px;margin:28px 0 10px;border-bottom:2px solid var(--grafite);padding-bottom:4px}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px}
+.tile{background:#fff;border:1px solid var(--borda);border-radius:8px;padding:12px 14px}
+.tile .r{font-size:12px;color:var(--suave)}
+.tile .v{font-size:22px;font-weight:600;margin-top:2px}
+.tile .s{font-size:12px;color:var(--suave);margin-top:2px}
+.pos{color:var(--verde)}.neg{color:var(--verm)}.am{color:var(--ambar)}
+.aviso{background:#fffbeb;border:1px solid #fcd34d;border-radius:6px;padding:8px 12px;margin:10px 0;font-size:13px;color:var(--ambar)}
+.card{background:#fff;border:1px solid var(--borda);border-radius:8px;padding:14px;overflow:auto}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th,td{padding:6px 8px;border-bottom:1px solid #eceff1;text-align:right;white-space:nowrap}
+th:first-child,td:first-child,td.l,th.l{text-align:left}
+th{background:#f1f3f5;position:sticky;top:0;cursor:pointer;user-select:none;font-weight:600}
+td.nome{max-width:340px;overflow:hidden;text-overflow:ellipsis;text-align:left}
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:1000px){.cols{grid-template-columns:1fr}}
+.dre td{padding:5px 8px}.dre tr.t td{font-weight:600;border-top:2px solid var(--grafite)}
+.tag{display:inline-block;padding:1px 7px;border-radius:10px;font-size:11px;background:#e5e7eb}
+.tag.full{background:#dcfce7;color:var(--verde)}.tag.sem{background:#fee2e2;color:var(--verm)}
+.max{max-height:520px;overflow:auto}
+.nota{font-size:12px;color:var(--suave);margin-top:6px}
+</style>
+</head>
+<body>
+<header>
+  <h1>Shopee · Techseller <span style="font-weight:400;opacity:.7">— painel de teste (local, somente leitura)</span></h1>
+  <span class="sp"></span>
+  <span id="prog"></span>
+  <label>Período <select id="dias" onchange="carregar()"><option value="7">7 dias</option><option value="15">15 dias</option><option value="30" selected>30 dias</option></select></label>
+  <button id="btn" onclick="atualizar()">Atualizar da Shopee</button>
+</header>
+<main>
+  <div id="msg"></div>
+  <div class="tiles" id="tiles"></div>
+  <h2>DRE da loja (pedidos pagos, tarifas do escrow)</h2>
+  <div class="cols">
+    <div class="card"><table class="dre" id="dre"></table><div class="nota" id="notaDre"></div></div>
+    <div class="card"><div id="grafico"></div><div class="nota">Barras: receita de venda por dia (pedidos não cancelados). Linha: gasto com Ads no dia.</div></div>
+  </div>
+  <h2>Margem por SKU</h2>
+  <div class="card max"><table id="tSku"></table></div>
+  <h2>Full e previsão de reposição <span class="nota">(meta <span id="meta"></span> dias · velocidade = 40% 7 dias + 60% 30 dias · estoque válido = Full + a caminho)</span></h2>
+  <label class="nota"><input type="checkbox" id="soFull" checked onchange="renderEstoque()"> só anúncios Full</label>
+  <div class="card max"><table id="tEst"></table></div>
+  <h2>Ads</h2>
+  <div class="tiles" id="adsTiles"></div>
+  <div class="cols" style="margin-top:12px">
+    <div class="card max"><table id="tAds"></table></div>
+    <div class="card"><div id="camps"></div></div>
+  </div>
+  <h2>Promoções e descontos da loja</h2>
+  <div class="card"><table id="tPromo"></table></div>
+  <h2>Saúde da conta</h2>
+  <div class="card"><div id="conta"></div></div>
+  <p class="nota" id="rodape"></p>
+</main>
+<script>
+var D=null, ord={};
+function esc(s){return String(s==null?"":s).replace(/[&<>"]/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]})}
+function n(v,c){c=c==null?2:c;if(v==null||isNaN(v))return "—";return Number(v).toLocaleString("pt-BR",{minimumFractionDigits:c,maximumFractionDigits:c})}
+function rs(v){return v==null||isNaN(v)?"—":"R$ "+n(v,2)}
+function pc(v){return v==null||isNaN(v)?"—":n(v,2)+"%"}
+function cls(v){return v>0?"pos":v<0?"neg":""}
+function tile(r,v,s,c){return '<div class="tile"><div class="r">'+r+'</div><div class="v '+(c||"")+'">'+v+'</div><div class="s">'+(s||"")+'</div></div>'}
+async function buscar(dias,vivo){
+  var r=await fetch("/shopee/painel/dados?dias="+dias+"&vivo="+vivo);
+  if(!r.ok){var e=await r.json().catch(function(){return{}});throw new Error(e.detail||r.status)}
+  return r.json();
+}
+async function carregar(){
+  var dias=document.getElementById("dias").value,m=document.getElementById("msg");
+  m.innerHTML='<div class="aviso">Carregando vendas…</div>';
+  try{
+    D=await buscar(dias,0);render();
+    m.insertAdjacentHTML("afterbegin",'<div class="aviso" id="avVivo">Buscando Ads, estoque Full e saúde da conta na Shopee… (pode levar 1 a 2 minutos na primeira vez)</div>');
+    D=await buscar(dias,1);render();
+  }catch(e){m.innerHTML='<div class="aviso">Erro: '+esc(e.message)+'</div>'}
+}
+async function atualizar(){
+  var dias=document.getElementById("dias").value;
+  await fetch("/shopee/painel/sincronizar?dias="+dias,{method:"POST"});
+  acompanhar();
+}
+async function acompanhar(){
+  var b=document.getElementById("btn"),p=document.getElementById("prog");
+  b.disabled=true;
+  var s=await (await fetch("/shopee/painel/status")).json();
+  if(s.rodando){p.textContent=s.fase+" "+s.feito+"/"+s.total;setTimeout(acompanhar,3000)}
+  else{b.disabled=false;p.textContent=s.erro?("Erro: "+s.erro):"";carregar()}
+}
+function render(){
+  var v=D.vendas,t=v.totais,a=D.ads,tc=D.tacos||{};
+  var adsTot=(a.diario||[]).reduce(function(x,d){x.gasto+=+d.expense||0;x.gmv+=+d.broad_gmv||0;x.cli+=+d.clicks||0;x.imp+=+d.impression||0;x.ped+=+d.broad_order||0;return x},{gasto:0,gmv:0,cli:0,imp:0,ped:0});
+  var cm=v.skus.filter(function(s){return s.margem!=null});
+  function som(k){return cm.reduce(function(x,s){return x+(s[k]||0)},0)}
+  var rec=som("receita"),margem=som("margem"),ads=som("ads"),mpa=margem-ads;
+  var roas=adsTot.gasto?adsTot.gmv/adsTot.gasto:null,est=t.receita?t.receita_estimada/t.receita*100:0;
+  document.getElementById("tiles").innerHTML=
+    tile("Pedidos na margem",n(t.pedidos,0),"cancelados "+n(t.cancelados,0)+" · em devolução "+n(t.em_devolucao,0)+" · não pagos "+n(t.nao_pagos,0))+
+    tile("Unidades",n(t.unidades,0))+
+    tile("Receita líquida",rs(t.receita),"preço cheio "+rs(t.preco_cheio)+" − descontos "+rs(t.desc_vendedor+t.cupom_vendedor))+
+    tile("Margem de contribuição",rs(margem),pc(rec?margem/rec*100:null)+" da receita (SKUs com CMV)",cls(margem))+
+    tile("TACoS",pc(tc.tacos_pct),"Ads "+rs(tc.gasto)+" ÷ receita líquida do mesmo período","am")+
+    tile("Margem após Ads",rs(mpa),pc(rec?mpa/rec*100:null)+" da receita",cls(mpa))+
+    tile("ROAS amplo (Ads)",n(roas,2),"GMV via Ads "+rs(adsTot.gmv))+
+    tile("Saldo Ads",rs(a.saldo));
+  var av=[];
+  if(t.sem_tarifas>0)av.push(n(t.sem_tarifas,0)+" pedidos ainda sem tarifas carregadas; ficam fora da margem até o fim da carga.");
+  if(est>1)av.push(pc(est)+" da receita é de pedidos ainda não concluídos: tarifas e frete são estimativas da Shopee e podem mudar até a conclusão.");
+  if(t.receita_sem_cmv>0)av.push("R$ "+n(t.receita_sem_cmv)+" de receita está em SKUs sem CMV na base do Grupo (fora da margem).");
+  document.getElementById("msg").innerHTML=av.map(function(x){return '<div class="aviso">'+x+'</div>'}).join("");
+  var L=[["Receita líquida (após descontos e cupons do vendedor)",rec,0],["(−) Comissão",-som("comissao")],["(−) Taxa de serviço",-som("servico")],["(−) Frete líquido do vendedor",-som("frete")],["(−) Taxas extras (Full, campanha, outras)",-som("extras")],["(−) Imposto ("+pc(v.aliquota*100)+" da receita)",-som("imposto")],["(−) CMV",-som("cmv")]];
+  var h="";L.forEach(function(l){h+='<tr><td class="l">'+l[0]+'</td><td>'+rs(l[1])+'</td></tr>'});
+  h+='<tr class="t"><td class="l">= Margem de contribuição</td><td class="'+cls(margem)+'">'+rs(margem)+'</td></tr>';
+  h+='<tr><td class="l">(−) Ads (TACoS '+pc(tc.tacos_pct)+' × receita)</td><td>'+rs(-ads)+'</td></tr>';
+  h+='<tr class="t"><td class="l">= Margem após Ads</td><td class="'+cls(mpa)+'">'+rs(mpa)+'</td></tr>';
+  document.getElementById("dre").innerHTML=h;
+  document.getElementById("notaDre").textContent="Base: pedidos pagos e não cancelados, SKUs com CMV. O repasse da Shopee não entra na margem (vai para o módulo financeiro). Taxas extras = taxa Full + campanha + diferenças até o repasse. O Ads é rateado pelo TACoS da loja, pois a Shopee não entrega Ads por SKU.";
+  grafico();skus();renderEstoque();adsRender(adsTot);promo();conta();
+  document.getElementById("meta").textContent=D.meta_dias;
+  document.getElementById("rodape").textContent="Gerado em "+D.gerado_em+" · pedidos no cache: "+D.sync.pedidos_cache+" · escrow no cache: "+D.sync.escrow_cache;
+}
+function grafico(){
+  var dias=D.vendas.por_dia,ads={};(D.ads.diario||[]).forEach(function(d){var p=String(d.date).split("-");ads[p[2]+"-"+p[1]+"-"+p[0]]=+d.expense||0});
+  if(!dias.length){document.getElementById("grafico").innerHTML="Sem pedidos no período.";return}
+  var W=640,H=240,m=32,mx=Math.max.apply(null,dias.map(function(d){return d.receita}).concat(Object.values(ads)).concat([1])),bw=(W-m*2)/dias.length,s="";
+  dias.forEach(function(d,i){var h=(H-m*2)*d.receita/mx;s+='<rect x="'+(m+i*bw+1)+'" y="'+(H-m-h)+'" width="'+Math.max(bw-2,1)+'" height="'+h+'" fill="#166534"><title>'+d.dia+': '+rs(d.receita)+' · '+d.pedidos+' pedidos</title></rect>'});
+  var pts=dias.map(function(d,i){return (m+i*bw+bw/2)+","+(H-m-(H-m*2)*(ads[d.dia]||0)/mx)}).join(" ");
+  s+='<polyline fill="none" stroke="#854d0e" stroke-width="2" points="'+pts+'"/>';
+  s+='<text x="4" y="14" font-size="11" fill="#6b7280">'+rs(mx)+'</text><text x="4" y="'+(H-m)+'" font-size="11" fill="#6b7280">0</text>';
+  s+='<text x="'+m+'" y="'+(H-10)+'" font-size="11" fill="#6b7280">'+dias[0].dia.slice(5)+'</text><text x="'+(W-m-30)+'" y="'+(H-10)+'" font-size="11" fill="#6b7280">'+dias[dias.length-1].dia.slice(5)+'</text>';
+  document.getElementById("grafico").innerHTML='<svg viewBox="0 0 '+W+' '+H+'" width="100%">'+s+'</svg>';
+}
+function tabela(id,cols,rows,key){
+  var e=document.getElementById(id),o=ord[id];
+  if(o)rows=rows.slice().sort(function(a,b){var x=a[o.k],y=b[o.k];x=x==null?-1e18:x;y=y==null?-1e18:y;return (x<y?-1:x>y?1:0)*o.d});
+  var h="<thead><tr>"+cols.map(function(c){return '<th class="'+(c.l?"l":"")+'" onclick="ordenar(\''+id+'\',\''+c.k+'\')">'+c.t+(o&&o.k==c.k?(o.d>0?" ▲":" ▼"):"")+"</th>"}).join("")+"</tr></thead><tbody>";
+  rows.forEach(function(r){h+="<tr>"+cols.map(function(c){var v=c.f?c.f(r):r[c.k];return '<td class="'+(c.l?(c.nome?"nome":"l"):"")+' '+(c.c?c.c(r):"")+'" '+(c.nome?'title="'+esc(r[c.k])+'"':"")+'>'+v+"</td>"}).join("")+"</tr>"});
+  e.innerHTML=h+"</tbody>";
+}
+function ordenar(id,k){var o=ord[id];ord[id]={k:k,d:o&&o.k==k?-o.d:-1};if(id=="tSku")skus();else if(id=="tEst")renderEstoque();else if(id=="tAds")adsRender()}
+function skus(){
+  var m=function(k){return function(r){return r[k]==null?"—":rs(r[k])}};
+  tabela("tSku",[{k:"sku",t:"SKU",l:1,f:function(r){return esc(r.sku)}},{k:"nome",t:"Anúncio",l:1,nome:1,f:function(r){return esc(r.nome)}},{k:"unid",t:"Unid.",f:function(r){return n(r.unid,0)}},
+   {k:"receita",t:"Receita líq.",f:m("receita")},{k:"comissao",t:"Comissão",f:m("comissao")},{k:"servico",t:"Serviço",f:m("servico")},{k:"frete",t:"Frete",f:m("frete")},{k:"extras",t:"Extras",f:m("extras")},{k:"imposto",t:"Imposto",f:m("imposto")},
+   {k:"cmv_unit",t:"CMV un.",f:function(r){return r.cmv_unit==null?'<span class="tag sem">sem CMV</span>':rs(r.cmv_unit)}},{k:"cmv",t:"CMV total",f:m("cmv")},
+   {k:"margem",t:"Margem",f:m("margem"),c:function(r){return cls(r.margem)}},{k:"margem_pct",t:"Margem %",f:function(r){return pc(r.margem_pct)},c:function(r){return cls(r.margem_pct)}},
+   {k:"ads",t:"Ads (TACoS)",f:m("ads")},{k:"margem_pos_ads",t:"Margem após Ads",f:m("margem_pos_ads"),c:function(r){return cls(r.margem_pos_ads)}},{k:"margem_pos_ads_pct",t:"% após Ads",f:function(r){return pc(r.margem_pos_ads_pct)},c:function(r){return cls(r.margem_pos_ads_pct)}}],D.vendas.skus);
+}
+function renderEstoque(){
+  var so=document.getElementById("soFull").checked,rows=(D.estoque||[]).filter(function(r){return !so||r.full});
+  if(!ord.tEst)ord.tEst={k:"sugestao_full",d:-1};
+  tabela("tEst",[{k:"sku",t:"SKU",l:1,f:function(r){return esc(r.sku||"(sem SKU)")+(r.full?' <span class="tag full">Full</span>':"")}},{k:"nome",t:"Anúncio",l:1,nome:1,f:function(r){return esc(r.nome)+(r.variacao?" · "+esc(r.variacao):"")}},
+   {k:"preco",t:"Preço",f:function(r){return rs(r.preco)}},{k:"est_vendedor",t:"Est. vendedor",f:function(r){return n(r.est_vendedor,0)}},{k:"est_full",t:"Est. Full",f:function(r){return n(r.est_full,0)}},
+   {k:"reservado",t:"Reservado",f:function(r){return n(r.reservado,0)}},{k:"a_caminho",t:"A caminho",f:function(r){return n(r.a_caminho,0)}},{k:"v7",t:"Vend. 7d",f:function(r){return n(r.v7,0)}},{k:"v30",t:"Vend. 30d",f:function(r){return n(r.v30,0)}},
+   {k:"vel_dia",t:"Vel./dia",f:function(r){return n(r.vel_dia,2)}},{k:"cobertura_dias",t:"Cobertura (d)",f:function(r){return r.cobertura_dias==null?"—":n(r.cobertura_dias,1)},c:function(r){return r.cobertura_dias!=null&&r.cobertura_dias<D.meta_dias?"neg":""}},
+   {k:"sugestao_full",t:"Enviar ao Full",f:function(r){return r.sugestao_full==null?"—":"<b>"+n(r.sugestao_full,0)+"</b>"},c:function(r){return r.sugestao_full>0?"am":""}},{k:"avaliacao",t:"Nota",f:function(r){return n(r.avaliacao,1)}}],rows);
+}
+function adsRender(tot){
+  var a=D.ads,d=(a.diario||[]).map(function(x){return{date:x.date,expense:+x.expense||0,broad_gmv:+x.broad_gmv||0,broad_roas:+x.broad_roas||0,direct_roas:+x.direct_roas||0,clicks:+x.clicks||0,impression:+x.impression||0,ctr:+x.ctr||0,broad_order:+x.broad_order||0}});
+  if(tot)document.getElementById("adsTiles").innerHTML=tile("Gasto no período",rs(tot.gasto))+tile("GMV via Ads (amplo)",rs(tot.gmv))+tile("ROAS amplo",n(tot.gasto?tot.gmv/tot.gasto:null,2))+tile("Cliques",n(tot.cli,0),"impressões "+n(tot.imp,0))+tile("Pedidos via Ads",n(tot.ped,0));
+  tabela("tAds",[{k:"date",t:"Dia",l:1},{k:"expense",t:"Gasto",f:function(r){return rs(r.expense)}},{k:"broad_gmv",t:"GMV amplo",f:function(r){return rs(r.broad_gmv)}},{k:"broad_roas",t:"ROAS amplo",f:function(r){return n(r.broad_roas,2)}},{k:"direct_roas",t:"ROAS direto",f:function(r){return n(r.direct_roas,2)}},{k:"clicks",t:"Cliques",f:function(r){return n(r.clicks,0)}},{k:"ctr",t:"CTR",f:function(r){return pc(r.ctr*(r.ctr<=1?100:1))}},{k:"broad_order",t:"Pedidos",f:function(r){return n(r.broad_order,0)}}],d);
+  var tipos={};(a.campanhas||[]).forEach(function(c){tipos[c.ad_type]=(tipos[c.ad_type]||0)+1});
+  document.getElementById("camps").innerHTML="<b>Campanhas de produto:</b> "+(a.campanhas||[]).length+"<br>"+Object.keys(tipos).map(function(k){return esc(k)+": "+tipos[k]}).join(" · ")+'<div class="nota">Desempenho por campanha e por anúncio entra na próxima etapa.</div>';
+}
+function promo(){
+  var p=D.promocoes||[];function dt(t){return t?new Date(t*1000).toLocaleString("pt-BR"):"—"}
+  document.getElementById("tPromo").innerHTML=p.length?"<thead><tr><th class='l'>Desconto</th><th>Status</th><th>Início</th><th>Fim</th></tr></thead><tbody>"+p.map(function(x){return "<tr><td class='l'>"+esc(x.nome)+"</td><td>"+(x.status=="ongoing"?"em andamento":"agendado")+"</td><td>"+dt(x.inicio)+"</td><td>"+dt(x.fim)+"</td></tr>"}).join("")+"</tbody>":"<tr><td class='l'>Nenhum desconto em andamento ou agendado.</td></tr>";
+}
+function conta(){
+  var c=D.conta||{},g=c.geral||{};
+  var h='<div class="tiles">'+tile("Pedidos atrasados",n(c.atrasados,0))+tile("Devoluções (30 dias)",n(c.devolucoes_30d,0))+tile("Avaliação geral",esc(g.rating!=null?g.rating:"—"),"falhas: atendimento "+esc(g.custom_service_failed)+" · envio "+esc(g.fulfillment_failed)+" · anúncios "+esc(g.listing_failed))+'</div>';
+  var m=c.metricas||[];if(m.length)h+='<table style="margin-top:12px"><thead><tr><th class="l">Indicador</th><th>Atual</th><th>Anterior</th><th>Meta</th></tr></thead><tbody>'+m.map(function(x){return '<tr><td class="l">'+esc(x.metric_name)+'</td><td>'+esc(x.current_period)+'</td><td>'+esc(x.last_period)+'</td><td>'+esc((x.target||{}).value!=null?(x.target.comparator||"")+" "+x.target.value:"—")+'</td></tr>'}).join("")+'</tbody></table>';
+  document.getElementById("conta").innerHTML=h;
+}
+carregar();
+</script>
+</body>
+</html>

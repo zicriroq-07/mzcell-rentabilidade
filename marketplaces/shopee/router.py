@@ -118,3 +118,33 @@ def precificar(preco: float, roas: float = 0.0, cmv: float = 0.0, frete: float =
     resultado["cmv_origem"] = "informado" if cmv and not sku else ("base" if sku and cmv else "nao_informado")
     resultado["empresa"] = impostos.empresa_da_conta("shopee")
     return resultado
+
+
+# ─── painel (teste local, sem login) ─────────────────────────────────────────
+
+import os as _os
+from marketplaces.shopee import painel as _painel
+
+
+@router.get("/painel", response_class=HTMLResponse)
+def painel_pagina():
+    with open(_os.path.join(_os.path.dirname(__file__), "pagina.html"), encoding="utf-8") as f:
+        return HTMLResponse(f.read(), headers={"Cache-Control": "no-store"})
+
+
+@router.get("/painel/dados")
+def painel_dados(dias: int = 7, loja: str = "techseller", vivo: int = 1):
+    try:
+        return _painel.dados(max(1, min(dias, 90)), loja, bool(vivo))
+    except ErroShopee as e:
+        raise _http(e)
+
+
+@router.post("/painel/sincronizar")
+def painel_sincronizar(dias: int = 7, loja: str = "techseller"):
+    return {"iniciado": _painel.sincronizar(max(1, min(dias, 90)), loja), **_painel.estado()}
+
+
+@router.get("/painel/status")
+def painel_status():
+    return _painel.estado()
