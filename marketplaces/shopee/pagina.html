@@ -55,6 +55,8 @@ td.nome{max-width:340px;overflow:hidden;text-overflow:ellipsis;text-align:left}
     <div class="card"><table class="dre" id="dre"></table><div class="nota" id="notaDre"></div></div>
     <div class="card"><div id="grafico"></div><div class="nota">Barras: receita de venda por dia (pedidos não cancelados). Linha: gasto com Ads no dia.</div></div>
   </div>
+  <h2>Conferir um pedido <span class="nota">(compare com o Seller Centre)</span></h2>
+  <div class="card"><input id="sn" placeholder="número do pedido, ex.: 2611148EMWA03A" style="width:320px;padding:6px 10px;border:1px solid #9ca3af;border-radius:6px"> <button onclick="conferir()">Conferir</button><div id="confOut" style="margin-top:10px"></div></div>
   <h2>Margem por SKU</h2>
   <div class="card max"><table id="tSku"></table></div>
   <h2>Full e previsão de reposição <span class="nota">(meta <span id="meta"></span> dias · velocidade = 40% 7 dias + 60% 30 dias · estoque válido = Full + a caminho)</span></h2>
@@ -132,11 +134,25 @@ function render(){
   h+='<tr class="t"><td class="l">= Margem de contribuição</td><td class="'+cls(margem)+'">'+rs(margem)+'</td></tr>';
   h+='<tr><td class="l">(−) Ads (TACoS '+pc(tc.tacos_pct)+' × receita)</td><td>'+rs(-ads)+'</td></tr>';
   h+='<tr class="t"><td class="l">= Margem após Ads</td><td class="'+cls(mpa)+'">'+rs(mpa)+'</td></tr>';
+  h+='<tr><td class="l nota">Conciliação (financeiro): diferença entre a receita menos tarifas e o repasse informado pela Shopee, fora da margem</td><td class="nota">'+rs(t.dif_repasse)+'</td></tr>';
   document.getElementById("dre").innerHTML=h;
-  document.getElementById("notaDre").textContent="Base: pedidos pagos e não cancelados, SKUs com CMV. O repasse da Shopee não entra na margem (vai para o módulo financeiro). Taxas extras = taxa Full + campanha + diferenças até o repasse. O Ads é rateado pelo TACoS da loja, pois a Shopee não entrega Ads por SKU.";
+  document.getElementById("notaDre").textContent="Base: pedidos pagos e não cancelados, SKUs com CMV. O repasse da Shopee não entra na margem (vai para o módulo financeiro). Taxas extras = taxa Full + campanha + demais cobranças explícitas do vendedor; a diferença até o repasse é só conciliação. O Ads é rateado pelo TACoS da loja, pois a Shopee não entrega Ads por SKU.";
   grafico();skus();renderEstoque();adsRender(adsTot);promo();conta();
   document.getElementById("meta").textContent=D.meta_dias;
   document.getElementById("rodape").textContent="Gerado em "+D.gerado_em+" · pedidos no cache: "+D.sync.pedidos_cache+" · escrow no cache: "+D.sync.escrow_cache;
+}
+async function conferir(){
+  var sn=document.getElementById("sn").value.trim(),o=document.getElementById("confOut");if(!sn)return;
+  var r=await (await fetch("/shopee/painel/pedido/"+encodeURIComponent(sn))).json();
+  if(r.erro){o.innerHTML='<div class="aviso">'+esc(r.erro)+'</div>';return}
+  var c=r.calculo||{};
+  function lin(t,v,b){return '<tr'+(b?' class="t"':'')+'><td class="l">'+t+'</td><td>'+rs(v)+'</td></tr>'}
+  var h='<p><b>'+esc(r.order_sn)+'</b> · '+esc(r.status)+' · '+esc(r.criado)+'<br>'+r.itens.map(function(i){return n(i.qtd,0)+"x "+esc(i.sku)+" — "+esc(i.nome)}).join("<br>")+'</p>';
+  if(r.calculo)h+='<table class="dre" style="max-width:640px">'+lin("Preço cheio",c.preco_cheio)+lin("(−) Desconto do vendedor",-c.desc_vendedor)+lin("(−) Cupom do vendedor",-c.cupom_vendedor)+lin("= Receita líquida",c.receita_liquida,1)+lin("(−) Comissão · líquida segundo a Shopee "+n(c.comissao_liquida),-c.comissao)+
+   lin("(−) Taxa de serviço (bruta) · líquida segundo a Shopee "+n(c.servico_liquida),-c.servico)+lin("(−) Frete líquido · real "+n(c.frete_real)+" / estimado "+n(c.frete_estimado)+" − comprador "+n(c.frete_comprador)+" − desc. Shopee "+n(c.frete_desc_shopee),-c.frete_liquido)+
+   lin("(−) Taxas extras (Full, campanha, outras)",-c.taxas_extras)+lin("Repasse segundo a Shopee (escrow) · pagamento: "+esc(c.pagamento)+" "+esc(c.parcelas)+" · taxa de cartão informada (não somada): "+n(c.taxa_cartao),c.repasse_shopee,1)+lin("Diferença até o repasse (conciliação)",c.dif_repasse)+'</table>';
+  if(r.historico.length)h+='<p class="nota"><b>Histórico de estimativas</b> (a Shopee mudou o valor deste pedido):</p><table style="max-width:640px"><thead><tr><th class="l">Status na época</th><th>Repasse</th><th>Comissão</th><th>Serviço</th><th>Frete líq.</th></tr></thead><tbody>'+r.historico.map(function(k){return '<tr><td class="l">'+esc(k.status)+'</td><td>'+rs(k.repasse_shopee)+'</td><td>'+rs(k.comissao)+'</td><td>'+rs(k.servico)+'</td><td>'+rs(k.frete_liquido)+'</td></tr>'}).join("")+'</tbody></table>';
+  o.innerHTML=h;
 }
 function grafico(){
   var dias=D.vendas.por_dia,ads={};(D.ads.diario||[]).forEach(function(d){var p=String(d.date).split("-");ads[p[2]+"-"+p[1]+"-"+p[0]]=+d.expense||0});

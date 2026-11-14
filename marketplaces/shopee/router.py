@@ -148,3 +148,8 @@ def painel_sincronizar(dias: int = 7, loja: str = "techseller"):
 @router.get("/painel/status")
 def painel_status():
     return _painel.estado()
+
+
+@router.get("/painel/pedido/{sn}")
+def painel_pedido(sn: str):
+    return _painel.pedido(sn)

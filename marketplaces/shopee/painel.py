@@ -26,6 +26,9 @@ BRT = timezone(timedelta(hours=-3))
 DIA = 86400
 META_DIAS = 20
 FINAIS = {"COMPLETED", "CANCELLED"}
+# cobranças do vendedor no escrow além de comissão, serviço, frete, Full e campanha (nomes da API; conferir no Seller Centre)
+OUTRAS_TARIFAS = ("seller_transaction_fee", "ads_escrow_top_up_fee_or_technical_support_fee",
+                  "delivery_seller_protection_fee_premium_amount", "lff_seller_protection_fee_amount", "order_ams_commission_fee", "pay_per_sale")
 CAMPOS_PEDIDO = "item_list,pay_time,total_amount,actual_shipping_fee,estimated_shipping_fee,payment_method,cancel_by,cancel_reason,fulfillment_flag,package_list"
 
 _estado = {"rodando": False, "fase": "", "feito": 0, "total": 0, "erro": "", "inicio": None, "fim": None}
@@ -40,6 +43,7 @@ def _db():
     c.execute("CREATE TABLE IF NOT EXISTS pedidos(order_sn TEXT PRIMARY KEY, criado INT, status TEXT, buscado INT, dados TEXT)")
     c.execute("CREATE TABLE IF NOT EXISTS escrow(order_sn TEXT PRIMARY KEY, buscado INT, dados TEXT)")
     c.execute("CREATE INDEX IF NOT EXISTS ix_ped_criado ON pedidos(criado)")
+    c.execute("CREATE TABLE IF NOT EXISTS escrow_hist(order_sn TEXT, status TEXT, buscado INT, dados TEXT)")
     return c
 
 
@@ -126,9 +130,13 @@ def _rodar(dias, loja):
                 return sn, json.dumps(r.get("order_income", {}), ensure_ascii=False)
             except ErroShopee:
                 return sn, None
+        antigos = {r[0]: (r[1], r[2]) for r in c.execute("SELECT order_sn,buscado,dados FROM escrow")}
+        status_de = dict(cand)
         with ThreadPoolExecutor(max_workers=6) as ex:
             for n, (sn, js) in enumerate(ex.map(_um, pend), 1):
                 if js is not None:
+                    if sn in antigos and antigos[sn][1] != js:     # a Shopee mudou o valor: guarda o anterior (estimativa x final)
+                        c.execute("INSERT INTO escrow_hist VALUES(?,?,?,?)", (sn, status_de.get(sn), antigos[sn][0], antigos[sn][1]))
                     c.execute("INSERT OR REPLACE INTO escrow VALUES(?,?,?)", (sn, int(time.time()), js))
                 if n % 25 == 0:
                     c.commit()
@@ -186,7 +194,7 @@ def vendas(dias: int):
     aliq, base = _aliquota(), _base_cmv()
     por_status, por_dia, por_sku = {}, {}, {}
     z = dict(pedidos=0, unidades=0, preco_cheio=0.0, desc_vendedor=0.0, cupom_vendedor=0.0, receita=0.0, comissao=0.0, servico=0.0,
-             frete=0.0, extras=0.0, repasse=0.0, receita_estimada=0.0)
+             frete=0.0, extras=0.0, repasse=0.0, dif_repasse=0.0, receita_estimada=0.0)
     tot = {**z, "cancelados": 0, "em_devolucao": 0, "nao_pagos": 0, "sem_tarifas": 0, "total_pedidos": len(peds)}
     for p in peds:
         st = p["status"]
@@ -210,14 +218,16 @@ def vendas(dias: int):
         cupom = _f(e.get("voucher_from_seller"))
         rl = _f(e.get("order_selling_price")) - cupom
         comissao = _f(e.get("commission_fee"))
-        servico = (_f(e.get("net_service_fee")) if st == "COMPLETED" and e.get("net_service_fee") is not None else (_f(e.get("service_fee")) or _f(e.get("net_service_fee"))))   # concluído: líquida (o que foi cobrado); antes: estimativa
+        servico = _f(e.get("service_fee")) or _f(e.get("net_service_fee"))   # bruta: é a que o repasse desconta (a líquida parece ajuste de parcelamento; a confirmar)
         frete = (_f(e.get("actual_shipping_fee")) or _f(e.get("estimated_shipping_fee"))) - _f(e.get("buyer_paid_shipping_fee")) - _f(e.get("shopee_shipping_rebate"))   # real só existe depois de concluir; antes, o estimado
         fbs, camp = _f(e.get("fbs_fee")), _f(e.get("campaign_fee"))
         repasse = _f(e.get("escrow_amount"))
-        extras = fbs + camp + (rl - comissao - servico - frete - fbs - camp - repasse)   # taxa Full + campanha + outras/ajustes
+        outras = sum(_f(e.get(k)) for k in OUTRAS_TARIFAS)
+        extras = fbs + camp + outras                                    # tarifas explícitas: Full, campanha e demais cobranças do vendedor
+        dif = rl - comissao - servico - frete - extras - repasse        # conciliação com o repasse (vai para o financeiro; fora da margem)
         unid = sum(_f(i["qtd"]) for i in p["itens"])
         for k, v in (("preco_cheio", cheio), ("desc_vendedor", desc), ("cupom_vendedor", cupom), ("receita", rl), ("comissao", comissao),
-                     ("servico", servico), ("frete", frete), ("extras", extras), ("repasse", repasse), ("unidades", unid)):
+                     ("servico", servico), ("frete", frete), ("extras", extras), ("repasse", repasse), ("dif_repasse", dif), ("unidades", unid)):
             tot[k] += v
         tot["pedidos"] += 1
         if st != "COMPLETED":
@@ -412,3 +422,38 @@ def dados(dias: int = 7, loja: str = "techseller", vivo: bool = True):
             "conta": _vivo("conta", lambda: conta(sid)) if vivo else _morno("conta", {}),
             "completo": vivo,
             "meta_dias": META_DIAS}
+
+
+def pedido(sn: str):
+    """Cálculo aberto de um pedido (para conferir com o Seller Centre) e o histórico das estimativas da Shopee."""
+    c = _db()
+    r = c.execute("SELECT status,criado,dados FROM pedidos WHERE order_sn=?", (sn.strip(),)).fetchone()
+    if not r:
+        c.close()
+        return {"erro": "Pedido não está no cache (fora dos dias carregados)."}
+    st, criado, pj = r
+    p = json.loads(pj)
+    e = c.execute("SELECT buscado,dados FROM escrow WHERE order_sn=?", (sn.strip(),)).fetchone()
+    hist = [{"status": h[0], "buscado": h[1], **_resumo_escrow(json.loads(h[2]), h[0])}
+            for h in c.execute("SELECT status,buscado,dados FROM escrow_hist WHERE order_sn=? ORDER BY buscado", (sn.strip(),))]
+    c.close()
+    out = {"order_sn": sn.strip(), "status": st, "criado": datetime.fromtimestamp(criado, BRT).strftime("%d/%m/%Y %H:%M"),
+           "itens": [{"sku": i["model_sku"] or i["item_sku"], "nome": i["nome"], "qtd": i["qtd"], "preco": i["preco"], "preco_cheio": i["preco_cheio"]} for i in p["itens"]],
+           "historico": hist}
+    if e:
+        out["escrow_buscado"] = e[0]
+        out["calculo"] = _resumo_escrow(json.loads(e[1]), st)
+    return out
+
+
+def _resumo_escrow(e, st):
+    f = lambda k: _f(e.get(k))
+    rl = f("order_selling_price") - f("voucher_from_seller")
+    serv = f("service_fee") or f("net_service_fee")
+    frete = (f("actual_shipping_fee") or f("estimated_shipping_fee")) - f("buyer_paid_shipping_fee") - f("shopee_shipping_rebate")
+    extras = f("fbs_fee") + f("campaign_fee") + sum(f(k) for k in OUTRAS_TARIFAS)
+    return {"preco_cheio": f("order_original_price"), "desc_vendedor": f("order_seller_discount"), "cupom_vendedor": f("voucher_from_seller"),
+            "receita_liquida": rl, "comissao": f("commission_fee"), "servico": serv, "servico_bruta": f("service_fee"), "servico_liquida": f("net_service_fee"), "comissao_liquida": f("net_commission_fee"), "taxa_cartao": f("credit_card_transaction_fee"), "parcelas": e.get("instalment_plan"), "pagamento": e.get("buyer_payment_method"),
+            "frete_real": f("actual_shipping_fee"), "frete_estimado": f("estimated_shipping_fee"), "frete_comprador": f("buyer_paid_shipping_fee"),
+            "frete_desc_shopee": f("shopee_shipping_rebate"), "frete_liquido": frete, "taxas_extras": extras,
+            "repasse_shopee": f("escrow_amount"), "dif_repasse": rl - f("commission_fee") - serv - frete - extras - f("escrow_amount")}
