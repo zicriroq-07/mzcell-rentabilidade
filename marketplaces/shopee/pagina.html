@@ -68,6 +68,10 @@ td.nome{max-width:340px;overflow:hidden;text-overflow:ellipsis;text-align:left}
     <div class="card max"><table id="tAds"></table></div>
     <div class="card"><div id="camps"></div></div>
   </div>
+  <h2>Devoluções</h2>
+  <div class="tiles" id="devTiles"></div>
+  <div class="cols" style="margin-top:12px"><div class="card"><table id="tDevSt"></table></div><div class="card"><table id="tDevMot"></table></div></div>
+  <p class="nota">Pedido com estorno já processado (seller_return_refund no escrow) sai da margem. Não encontramos cobrança de frete de devolução ao vendedor nos dados do escrow.</p>
   <h2>Promoções e descontos da loja</h2>
   <div class="card"><table id="tPromo"></table></div>
   <h2>Saúde da conta</h2>
@@ -137,7 +141,7 @@ function render(){
   h+='<tr><td class="l nota">Conciliação (financeiro): diferença entre a receita menos tarifas e o repasse informado pela Shopee, fora da margem</td><td class="nota">'+rs(t.dif_repasse)+'</td></tr>';
   document.getElementById("dre").innerHTML=h;
   document.getElementById("notaDre").textContent="Base: pedidos pagos e não cancelados, SKUs com CMV. O repasse da Shopee não entra na margem (vai para o módulo financeiro). Taxas extras = taxa Full + campanha + demais cobranças explícitas do vendedor; a diferença até o repasse é só conciliação. O Ads é rateado pelo TACoS da loja, pois a Shopee não entrega Ads por SKU.";
-  grafico();skus();renderEstoque();adsRender(adsTot);promo();conta();
+  grafico();skus();dev();renderEstoque();adsRender(adsTot);promo();conta();
   document.getElementById("meta").textContent=D.meta_dias;
   document.getElementById("rodape").textContent="Gerado em "+D.gerado_em+" · pedidos no cache: "+D.sync.pedidos_cache+" · escrow no cache: "+D.sync.escrow_cache;
 }
@@ -153,6 +157,12 @@ async function conferir(){
    lin("(−) Taxas extras (Full, campanha, outras)",-c.taxas_extras)+lin("Repasse segundo a Shopee (escrow) · pagamento: "+esc(c.pagamento)+" "+esc(c.parcelas)+" · taxa de cartão informada (não somada): "+n(c.taxa_cartao),c.repasse_shopee,1)+lin("Diferença até o repasse (conciliação)",c.dif_repasse)+'</table>';
   if(r.historico.length)h+='<p class="nota"><b>Histórico de estimativas</b> (a Shopee mudou o valor deste pedido):</p><table style="max-width:640px"><thead><tr><th class="l">Status na época</th><th>Repasse</th><th>Comissão</th><th>Serviço</th><th>Frete líq.</th></tr></thead><tbody>'+r.historico.map(function(k){return '<tr><td class="l">'+esc(k.status)+'</td><td>'+rs(k.repasse_shopee)+'</td><td>'+rs(k.comissao)+'</td><td>'+rs(k.servico)+'</td><td>'+rs(k.frete_liquido)+'</td></tr>'}).join("")+'</tbody></table>';
   o.innerHTML=h;
+}
+function dev(){
+  var d=D.devolucoes||{},t=D.vendas.totais;
+  document.getElementById("devTiles").innerHTML=tile("Devoluções abertas no período",n(d.total,0),"valor pedido "+rs(d.valor))+tile("Já reembolsadas ao comprador",n(d.reembolsadas_no_escrow,0),rs(d.valor_reembolsado_escrow)+" estornados no escrow","neg")+tile("Pedidos fora da margem por estorno",n(t.reembolsados,0),"além de "+n(t.em_devolucao,0)+" em devolução (a caminho)");
+  function tb(id,r,k,t1){document.getElementById(id).innerHTML="<thead><tr><th class='l'>"+t1+"</th><th>Qtd.</th><th>Valor</th></tr></thead><tbody>"+(r||[]).map(function(x){return "<tr><td class='l'>"+esc(x[k])+"</td><td>"+n(x.n,0)+"</td><td>"+rs(x.valor)+"</td></tr>"}).join("")+"</tbody>"}
+  tb("tDevSt",d.por_status,"status","Status da devolução");tb("tDevMot",d.por_motivo,"motivo","Motivo");
 }
 function grafico(){
   var dias=D.vendas.por_dia,ads={};(D.ads.diario||[]).forEach(function(d){var p=String(d.date).split("-");ads[p[2]+"-"+p[1]+"-"+p[0]]=+d.expense||0});

@@ -43,6 +43,7 @@ def _db():
     c.execute("CREATE TABLE IF NOT EXISTS pedidos(order_sn TEXT PRIMARY KEY, criado INT, status TEXT, buscado INT, dados TEXT)")
     c.execute("CREATE TABLE IF NOT EXISTS escrow(order_sn TEXT PRIMARY KEY, buscado INT, dados TEXT)")
     c.execute("CREATE INDEX IF NOT EXISTS ix_ped_criado ON pedidos(criado)")
+    c.execute("CREATE TABLE IF NOT EXISTS devolucoes(return_sn TEXT PRIMARY KEY, order_sn TEXT, status TEXT, motivo TEXT, reembolso REAL, criado INT, atualizado INT)")
     c.execute("CREATE TABLE IF NOT EXISTS escrow_hist(order_sn TEXT, status TEXT, buscado INT, dados TEXT)")
     return c
 
@@ -142,6 +143,36 @@ def _rodar(dias, loja):
                     c.commit()
                 _set(feito=n)
         c.commit()
+        # 4) devoluções do período; o escrow dos pedidos devolvidos é refeito (o estorno só aparece depois de aceito)
+        _set(fase="buscando devoluções", feito=0, total=0)
+        agora_ts = int(time.time())
+        devs = []
+        for i in range(max(1, math.ceil(dias / 15))):
+            de, ate = agora_ts - (i + 1) * 15 * DIA, agora_ts - i * 15 * DIA
+            pg = 0
+            while True:
+                r = api.chamar("/api/v2/returns/get_return_list", sid, {"page_no": pg, "page_size": 50, "create_time_from": de,
+                               "create_time_to": ate}).get("response", {})
+                devs += r.get("return", [])
+                if not r.get("more"):
+                    break
+                pg += 1
+        for x in devs:
+            c.execute("INSERT OR REPLACE INTO devolucoes VALUES(?,?,?,?,?,?,?)", (x.get("return_sn"), x.get("order_sn"), x.get("status"),
+                      x.get("reason"), _f(x.get("refund_amount")), x.get("create_time"), x.get("update_time")))
+        c.commit()
+        refazer = list({x["order_sn"] for x in devs if x.get("order_sn")})
+        _set(fase="atualizando escrow dos pedidos devolvidos", feito=0, total=len(refazer))
+        antigos2 = {r[0]: (r[1], r[2]) for r in c.execute("SELECT order_sn,buscado,dados FROM escrow")}
+        stt = {r[0]: r[1] for r in c.execute("SELECT order_sn,status FROM pedidos")}
+        with ThreadPoolExecutor(max_workers=6) as ex:
+            for n, (sn, js) in enumerate(ex.map(_um, refazer), 1):
+                if js is not None:
+                    if sn in antigos2 and antigos2[sn][1] != js:
+                        c.execute("INSERT INTO escrow_hist VALUES(?,?,?,?)", (sn, stt.get(sn), antigos2[sn][0], antigos2[sn][1]))
+                    c.execute("INSERT OR REPLACE INTO escrow VALUES(?,?,?)", (sn, int(time.time()), js))
+                _set(feito=n)
+        c.commit()
         c.close()
         _cache_vivo.clear()
         _set(fase="concluído", rodando=False, fim=time.time())
@@ -195,7 +226,7 @@ def vendas(dias: int):
     por_status, por_dia, por_sku = {}, {}, {}
     z = dict(pedidos=0, unidades=0, preco_cheio=0.0, desc_vendedor=0.0, cupom_vendedor=0.0, receita=0.0, comissao=0.0, servico=0.0,
              frete=0.0, extras=0.0, repasse=0.0, dif_repasse=0.0, receita_estimada=0.0)
-    tot = {**z, "cancelados": 0, "em_devolucao": 0, "nao_pagos": 0, "sem_tarifas": 0, "total_pedidos": len(peds)}
+    tot = {**z, "cancelados": 0, "em_devolucao": 0, "reembolsados": 0, "valor_reembolsado": 0.0, "nao_pagos": 0, "sem_tarifas": 0, "total_pedidos": len(peds)}
     for p in peds:
         st = p["status"]
         por_status[st] = por_status.get(st, 0) + 1
@@ -211,6 +242,10 @@ def vendas(dias: int):
         e = esc.get(p["order_sn"])
         if not e:
             tot["sem_tarifas"] += 1
+            continue
+        if _f(e.get("seller_return_refund")) < 0:       # estorno ao comprador já processado: a venda não existe mais
+            tot["reembolsados"] += 1
+            tot["valor_reembolsado"] += -_f(e.get("seller_return_refund"))
             continue
         bruto_itens = sum(_f(i["preco"]) * _f(i["qtd"]) for i in p["itens"]) or 1
         cheio = _f(e.get("order_original_price")) or bruto_itens
@@ -415,7 +450,7 @@ def dados(dias: int = 7, loja: str = "techseller", vivo: bool = True):
     v["totais"]["ads_alocado"] = sum(x["ads"] or 0 for x in v["skus"])
     v["totais"]["margem_pos_ads"] = v["totais"]["margem"] - v["totais"]["ads_alocado"]
     return {"loja": loja, "gerado_em": datetime.now(BRT).isoformat(timespec="seconds"), "sync": estado(),
-            "vendas": v, "tacos": t,
+            "vendas": v, "tacos": t, "devolucoes": devolucoes(dias),
             "estoque": _safe(lambda: estoque_e_previsao(sid), []) if vivo else (estoque_e_previsao(sid) if "estoque" in _cache_vivo else []),
             "ads": a,
             "promocoes": _vivo("promo", lambda: promocoes(sid)) if vivo else _morno("promo", []),
@@ -457,3 +492,28 @@ def _resumo_escrow(e, st):
             "frete_real": f("actual_shipping_fee"), "frete_estimado": f("estimated_shipping_fee"), "frete_comprador": f("buyer_paid_shipping_fee"),
             "frete_desc_shopee": f("shopee_shipping_rebate"), "frete_liquido": frete, "taxas_extras": extras,
             "repasse_shopee": f("escrow_amount"), "dif_repasse": rl - f("commission_fee") - serv - frete - extras - f("escrow_amount")}
+
+
+def devolucoes(dias: int):
+    c = _db()
+    corte = int(time.time()) - dias * DIA
+    rows = c.execute("SELECT status,motivo,reembolso,order_sn FROM devolucoes WHERE criado>=?", (corte,)).fetchall()
+    esc = {r[0]: json.loads(r[1]) for r in c.execute("SELECT order_sn,dados FROM escrow")}
+    c.close()
+    por_status, por_motivo = {}, {}
+    liquidadas = 0
+    perdido = 0.0
+    for st, mot, val, sn in rows:
+        a = por_status.setdefault(st, {"n": 0, "valor": 0.0})
+        a["n"] += 1
+        a["valor"] += val or 0
+        b = por_motivo.setdefault(mot or "—", {"n": 0, "valor": 0.0})
+        b["n"] += 1
+        b["valor"] += val or 0
+        e = esc.get(sn) or {}
+        if _f(e.get("seller_return_refund")) < 0:
+            liquidadas += 1
+            perdido += -_f(e.get("seller_return_refund"))
+    return {"total": len(rows), "valor": sum(r[2] or 0 for r in rows), "reembolsadas_no_escrow": liquidadas, "valor_reembolsado_escrow": perdido,
+            "por_status": [{"status": k, **v} for k, v in sorted(por_status.items(), key=lambda x: -x[1]["n"])],
+            "por_motivo": [{"motivo": k, **v} for k, v in sorted(por_motivo.items(), key=lambda x: -x[1]["n"])]}
