@@ -297,8 +297,41 @@ def _margem_item(c, peds, item_id, d0, d1, base, aliq):
     return t
 
 
+
+# A Shopee devolve cada tarifa por rule_id e valor, sem o nome (rule_display_name vem vazio). Significados inferidos dos dados reais
+# (Pix, 1 unidade, preço líquido abaixo de R$ 80; conferir no Seller Centre): ver marketplaces/shopee/TARIFAS.md
+REGRAS = {
+    1000074: ("comissao_extra", "Parte da comissão (1,4% do preço; com commission_fee fecha 20%)"),
+    1000075: ("fixo", "Taxa fixa por item (R$ 4,50 até R$ 79,99; R$ 20,00 de R$ 100 a R$ 199,99)"),
+    1000069: ("destaque", "Campanha Destaque a 3,5% (vendas de 22/09 a 27/10/2026)"),
+    1000091: ("destaque", "Campanha Destaque a 5% (vendas desde 28/10/2026; substituiu a de 3,5%, nome não informado pela Shopee)"),
+}
+
+
+def decompor_tarifas(e, part, qtd, rl):
+    """Tarifas do escrow de um pedido, rateadas para o anúncio (part) e por unidade (qtd). Devolve percentuais e R$/un."""
+    out = {"comissao_pct": _f(e.get("commission_fee")) * part / rl, "fixo": 0.0, "destaque_pct": 0.0, "outras_un": 0.0, "regras": []}
+    for r in e.get("net_service_fee_info_list") or []:
+        rid, val = r.get("rule_id"), _f(r.get("fee_amount")) * part
+        tipo, nome = REGRAS.get(rid, ("outra", f"Regra {rid} (sem nome na API)"))
+        if tipo == "comissao_extra":
+            out["comissao_pct"] += val / rl
+        elif tipo == "fixo":
+            out["fixo"] += val / qtd
+        elif tipo == "destaque":
+            out["destaque_pct"] += val / rl
+        else:
+            out["outras_un"] += val / qtd
+        out["regras"].append({"rule_id": rid, "nome": nome, "valor_un": val / qtd, "pct": val / rl})
+    out["regras"].insert(0, {"rule_id": "commission_fee", "nome": "Comissão (commission_fee)", "valor_un": _f(e.get("commission_fee")) * part / qtd,
+                             "pct": _f(e.get("commission_fee")) * part / rl})
+    return out
+
+
 def _custos_reais(c, peds, item_id, base, aliq, preco_atual):
-    """Parâmetros do simulador a partir da última venda com escrow (taxas em % do preço, frete e extras em R$/un)."""
+    """Parâmetros do simulador pela última venda com escrow: comissão, taxa fixa, Destaque e demais regras separadas.
+    Prefere venda paga no Pix, em que as tarifas não têm ajuste de parcelamento."""
+    candidatos = []
     for p in sorted(peds, key=lambda x: -x["criado"]):
         if p["status"] in FINAL_FORA:
             continue
@@ -311,6 +344,11 @@ def _custos_reais(c, peds, item_id, base, aliq, preco_atual):
         meus = [i for i in p["itens"] if i["item_id"] == item_id]
         if not meus:
             continue
+        candidatos.append((p, e, meus))
+        if e.get("buyer_payment_method") == "Pix" and len(candidatos) >= 1:
+            break
+    pix = [x for x in candidatos if x[1].get("buyer_payment_method") == "Pix"]
+    for p, e, meus in (pix or candidatos):
         tot_itens = sum(_f(i["preco"]) * _f(i["qtd"]) for i in p["itens"]) or 1
         qtd = sum(_f(i["qtd"]) for i in meus)
         rec = sum(_f(i["preco"]) * _f(i["qtd"]) for i in meus)
@@ -318,16 +356,16 @@ def _custos_reais(c, peds, item_id, base, aliq, preco_atual):
         rl = (_f(e.get("order_selling_price")) - _f(e.get("voucher_from_seller"))) * part
         if rl <= 0 or qtd <= 0:
             continue
-        servico = (_f(e.get("service_fee")) or _f(e.get("net_service_fee"))) * part
         frete = ((_f(e.get("actual_shipping_fee")) or _f(e.get("estimated_shipping_fee"))) - _f(e.get("buyer_paid_shipping_fee")) - _f(e.get("shopee_shipping_rebate"))) * part
         extras = (_f(e.get("fbs_fee")) + _f(e.get("campaign_fee")) + sum(_f(e.get(k)) for k in painel.OUTRAS_TARIFAS)) * part
         sku = meus[0]["model_sku"] or meus[0]["item_sku"]
-        return {"origem": f"última venda em {painel._dia(p['criado'])} (pedido {p['order_sn']})", "preco": rl / qtd,
-                "preco_cheio": _f(e.get("order_original_price")) * part / qtd, "comissao_pct": _f(e.get("commission_fee")) * part / rl,
-                "servico_pct": servico / rl, "frete": frete / qtd, "extras": extras / qtd, "cupom": _f(e.get("voucher_from_seller")) * part / qtd,
+        t = decompor_tarifas(e, part, qtd, rl)
+        return {"origem": f"última venda em {painel._dia(p['criado'])} (pedido {p['order_sn']}, {e.get('buyer_payment_method') or 'pagamento n/d'})",
+                "preco": rl / qtd, "preco_cheio": _f(e.get("order_original_price")) * part / qtd, **t,
+                "frete": frete / qtd, "extras": extras / qtd, "cupom": _f(e.get("voucher_from_seller")) * part / qtd,
                 "cmv": painel._cmv(sku, base), "sku": sku, "imposto_pct": aliq}
-    return {"origem": "sem venda com escrow no cache", "preco": preco_atual, "comissao_pct": 0.14, "servico_pct": 0.10, "frete": 0.0, "extras": 0.0,
-            "cupom": 0.0, "cmv": None, "sku": "", "imposto_pct": aliq}
+    return {"origem": "sem venda com escrow no cache", "preco": preco_atual, "comissao_pct": 0.20, "fixo": 4.5, "destaque_pct": 0.05,
+            "outras_un": 0.0, "regras": [], "frete": 0.0, "extras": 0.0, "cupom": 0.0, "cmv": None, "sku": "", "imposto_pct": aliq}
 
 
 # ─── avisos e PIVO ───────────────────────────────────────────────────────────

@@ -329,11 +329,13 @@ function renderAn(){
   var prom=(d.promocoes||[]).length?'<section class="cd"><h4>Promoções do anúncio</h4><table><thead><tr><th class="l">Tipo</th><th>Status</th><th>Preço promocional</th><th>Início</th><th>Fim</th></tr></thead><tbody>'+d.promocoes.map(function(p){var pr=((p.promotion_price_info||[])[0]||{}).promotion_price;return "<tr><td class='l'>"+esc(p.promotion_type)+"</td><td>"+esc(p.promotion_staging)+"</td><td>"+(pr!=null?rs(pr):"—")+"</td><td>"+(p.start_time?new Date(p.start_time*1000).toLocaleDateString("pt-BR"):"—")+"</td><td>"+(p.end_time?new Date(p.end_time*1000).toLocaleDateString("pt-BR"):"—")+"</td></tr>"}).join("")+"</tbody></table></section>":"";
   // simulador
   function fld(l,id,v,st,ph){return '<div class="sf"><label>'+l+'</label><input type="number" id="'+id+'" value="'+v+'" step="'+st+'" '+(ph?'placeholder="'+ph+'"':"")+' oninput="calcAnSim()"></div>'}
+  var regrasH=(sim.regras||[]).length?'<details style="margin-top:8px"><summary class="nota" style="cursor:pointer">Tarifas da última venda, por regra (a Shopee não informa os nomes)</summary><table style="margin-top:6px"><thead><tr><th class="l">Regra</th><th>R$/un</th><th>% do preço</th></tr></thead><tbody>'+sim.regras.map(function(r){return "<tr><td class='l' title='"+esc(r.nome)+"'>"+esc(r.nome)+" <span class='nota'>("+esc(r.rule_id)+")</span></td><td>"+n(r.valor_un,2)+"</td><td>"+pc(r.pct*100)+"</td></tr>"}).join("")+'</tbody></table><div class="nota">Nomes inferidos pelo comportamento nos pedidos (percentual constante ou valor fixo). Confirme no Seller Centre → detalhes do pedido.</div></details>':"";
   var simH='<aside class="cd"><h4>Simulação do cenário'+(sim.sku?' <span class="nota">CMV pela base do Grupo · '+esc(sim.sku)+"</span>":"")+'</h4><div class="sg">'+
-    fld("Preço simulado (R$)","s-preco",sim.preco.toFixed(2),"0.01")+fld("CMV (R$)","s-cmv",(sim.cmv==null?0:sim.cmv).toFixed(2),"0.01")+fld("Imposto (%)","s-imp",(sim.imposto_pct*100).toFixed(2),"0.01")+fld("Comissão (%)","s-com",(sim.comissao_pct*100).toFixed(2),"0.01")+
-    fld("Taxa de serviço (%)","s-srv",(sim.servico_pct*100).toFixed(2),"0.01")+fld("Frete do vendedor (R$)","s-frete",sim.frete.toFixed(2),"0.01")+fld("Taxas extras (R$/un)","s-ext",sim.extras.toFixed(2),"0.01")+fld("Cupom do vendedor (R$/un)","s-cup",sim.cupom.toFixed(2),"0.01")+
+    fld("Preço simulado (R$)","s-preco",sim.preco.toFixed(2),"0.01")+fld("CMV (R$)","s-cmv",(sim.cmv==null?0:sim.cmv).toFixed(2),"0.01")+fld("Imposto (%)","s-imp",(sim.imposto_pct*100).toFixed(2),"0.01")+fld("Comissão total (%)","s-com",(sim.comissao_pct*100).toFixed(2),"0.01")+
+    fld("Taxa fixa por item (R$)","s-fixo",sim.fixo.toFixed(2),"0.01")+fld("Campanha Destaque (%)","s-dest",(sim.destaque_pct*100).toFixed(2),"0.01")+fld("Outras taxas de serviço (R$/un)","s-outras",sim.outras_un.toFixed(2),"0.01")+
+    fld("Frete do vendedor (R$)","s-frete",sim.frete.toFixed(2),"0.01")+fld("Taxas extras (R$/un)","s-ext",sim.extras.toFixed(2),"0.01")+fld("Cupom do vendedor (R$/un)","s-cup",sim.cupom.toFixed(2),"0.01")+
     fld("TACOS 30 dias (%)","s-tacos",(sim.tacos30*100).toFixed(2),"0.01")+"</div>"+(sim.cmv==null?'<div class="aviso" style="margin-top:8px">SKU sem CMV na base do Grupo: informe o CMV manualmente.</div>':"")+
-    '<div class="so" id="simOut"></div><div class="nota" style="margin-top:8px">Base: '+esc(sim.origem)+'. Comissão e serviço em % do preço líquido (estimativa pela última venda; a Shopee calcula por regras de faixa).</div>'+
+    '<div class="so" id="simOut"></div><div class="nota" style="margin-top:8px">Base: '+esc(sim.origem)+'. Comissão total = comissão + 1,4% que a Shopee lança na taxa de serviço (20% no total). O Destaque era 3,5% até 27/10 e é 5% desde 28/10/2026.</div>'+regrasH+
     '<div class="nota" style="margin-top:6px"><a onclick="anUsarMedias()">Usar médias do período selecionado</a> · <a onclick="anUsarUltima()">Usar valores da última venda</a></div></aside>';
   // mapa
   var mapaH='<section class="cd mapa"><h4>Mapa de alterações</h4><textarea id="mpTxt" placeholder="Descreva a alteração feita (título, imagens, preço, campanha, ADS...)"></textarea><div style="margin:6px 0"><button class="bt v" onclick="anMapa()">Registrar alteração</button></div>'+
@@ -346,21 +348,23 @@ function renderAn(){
 function anCol(k,on){var e=adsEsc();if(on){if(e.length>=7)return;e.push(k)}else{if(e.length<=1)return;e=e.filter(function(x){return x!=k})}localStorage.setItem("shpAdsCols",JSON.stringify(e));var m=document.getElementById("anMenu").style.display;renderAn();document.getElementById("anMenu").style.display=m}
 function anNum(id){var v=parseFloat(document.getElementById(id).value);return isNaN(v)?0:v}
 function calcAnSim(){
-  var p=anNum("s-preco"),cmv=anNum("s-cmv"),imp=anNum("s-imp")/100,com=anNum("s-com")/100,srv=anNum("s-srv")/100,fr=anNum("s-frete"),ex=anNum("s-ext"),cup=anNum("s-cup"),tc=anNum("s-tacos")/100;
-  var antes=p-cup-cmv-p*imp-p*com-p*srv-fr-ex,res=antes-p*tc,mp=p>0?res/p:0,mAntes=p>0?antes/p:0;
+  var p=anNum("s-preco"),cmv=anNum("s-cmv"),imp=anNum("s-imp")/100,com=anNum("s-com")/100,fixo=anNum("s-fixo"),dest=anNum("s-dest")/100,outras=anNum("s-outras"),fr=anNum("s-frete"),ex=anNum("s-ext"),cup=anNum("s-cup"),tc=anNum("s-tacos")/100;
+  var taxas=p*com+fixo+p*dest+outras;
+  var antes=p-cup-cmv-p*imp-taxas-fr-ex,res=antes-p*tc,mp=p>0?res/p:0,mAntes=p>0?antes/p:0;
   var be=mAntes>0?1/mAntes:null;
   document.getElementById("simOut").innerHTML=
     '<div class="sr"><span>Resultado unitário</span><b class="'+cls(res)+'">'+rs(res)+"</b></div>"+
     '<div class="sr"><span>Margem simulada</span><b class="'+cls(res)+'">'+pc(mp*100)+"</b></div>"+
     '<div class="sr"><span>Margem antes do Ads</span><span>'+rs(antes)+" · "+pc(mAntes*100)+"</span></div>"+
     '<div class="sr"><span>ROAS de equilíbrio</span><span>'+(be?n(be,2):"—")+'</span></div><div class="sr"><span>TACOS máximo (margem zero)</span><span>'+pc(mAntes*100)+"</span></div>"+
-    '<div class="nota">Comissão '+rs(p*com)+" · serviço "+rs(p*srv)+" · imposto "+rs(p*imp)+" · Ads "+rs(p*tc)+" por unidade</div>";
+    '<div class="sr"><span>Tarifas da Shopee</span><span>'+rs(taxas)+" · "+pc(p>0?taxas/p*100:0)+" do preço</span></div>"+
+    '<div class="nota">Comissão '+rs(p*com)+" · taxa fixa "+rs(fixo)+" · Destaque "+rs(p*dest)+""+" · imposto "+rs(p*imp)+" · Ads "+rs(p*tc)+" por unidade</div>";
 }
 function anSet(m){Object.keys(m).forEach(function(k){document.getElementById(k).value=m[k]});calcAnSim()}
-function anUsarUltima(){var s=AN.sim;anSet({"s-preco":s.preco.toFixed(2),"s-cmv":(s.cmv==null?0:s.cmv).toFixed(2),"s-imp":(s.imposto_pct*100).toFixed(2),"s-com":(s.comissao_pct*100).toFixed(2),"s-srv":(s.servico_pct*100).toFixed(2),"s-frete":s.frete.toFixed(2),"s-ext":s.extras.toFixed(2),"s-cup":s.cupom.toFixed(2),"s-tacos":(s.tacos30*100).toFixed(2)})}
+function anUsarUltima(){var s=AN.sim;anSet({"s-preco":s.preco.toFixed(2),"s-cmv":(s.cmv==null?0:s.cmv).toFixed(2),"s-imp":(s.imposto_pct*100).toFixed(2),"s-com":(s.comissao_pct*100).toFixed(2),"s-fixo":s.fixo.toFixed(2),"s-dest":(s.destaque_pct*100).toFixed(2),"s-outras":s.outras_un.toFixed(2),"s-frete":s.frete.toFixed(2),"s-ext":s.extras.toFixed(2),"s-cup":s.cupom.toFixed(2),"s-tacos":(s.tacos30*100).toFixed(2)})}
 function anUsarMedias(){
   var m=AN.A.margem||{},u=m.unid||0,r=m.receita||0;if(!(u>0&&r>0)){alert("Sem vendas com escrow no período para calcular médias.");return}
-  anSet({"s-preco":(r/u).toFixed(2),"s-cmv":(m.cmv/u).toFixed(2),"s-imp":(m.imposto/r*100).toFixed(2),"s-com":(m.comissao/r*100).toFixed(2),"s-srv":(m.servico/r*100).toFixed(2),"s-frete":(m.frete/u).toFixed(2),"s-ext":(m.extras/u).toFixed(2),"s-tacos":(AN.p30.tacos*100).toFixed(2)})
+  anSet({"s-preco":(r/u).toFixed(2),"s-cmv":(m.cmv/u).toFixed(2),"s-imp":(m.imposto/r*100).toFixed(2),"s-com":(m.comissao/r*100).toFixed(2),"s-fixo":"0.00","s-dest":"0.00","s-outras":(m.servico/u).toFixed(2),"s-frete":(m.frete/u).toFixed(2),"s-ext":(m.extras/u).toFixed(2),"s-tacos":(AN.p30.tacos*100).toFixed(2)})
 }
 function anPos(){fetch("/shopee/painel/anuncio/"+AN.id+"/posicao",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({pagina:+document.getElementById("pgP").value||1,posicao:+document.getElementById("pgN").value||0,keyword:document.getElementById("pgK").value})}).then(function(){abrirAnuncio(AN.id,AN.periodo.de,AN.periodo.ate)})}
 function anMapa(){var t=document.getElementById("mpTxt").value.trim();if(!t){alert("Escreva a alteração feita.");return}var A=AN.A,mg=A.margem||{};

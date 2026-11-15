@@ -14,12 +14,12 @@ Conferir na Central do Vendedor antes de usar em decisão de preço.
 # Até R$ 8 a fonte indica 50% e sem taxa fixa; o limite (R$ 8 ou R$ 9) também diverge entre fontes.
 TABELA_COMISSAO = [
     (0.00, 7.99, 0.50, 0.00),
-    (8.00, 79.99, 0.20, 4.00),
+    (8.00, 79.99, 0.20, 4.50),      # validado no escrow: R$ 4,00 até 29/09/2026 e R$ 4,50 desde 30/09-01/10/2026
     (80.00, 99.99, 0.14, 16.00),
     (100.00, 199.99, 0.14, 20.00),
     (200.00, float("inf"), 0.14, 26.00),
 ]
-TABELA_FONTE = "Artigos de mercado de 2026 (lider10, calcularte, mambadigital, roilabs, multdrop). Provisória: conferir na Central do Vendedor."
+TABELA_FONTE = "Artigos de mercado de 2026, conferidos contra o escrow da Techseller: 20% + R$ 4,50 (até R$ 79,99) e 14% + R$ 20 (R$ 100 a R$ 199,99) batem; faixas de R$ 80 a R$ 99,99 e de R$ 200 em diante ainda sem venda para validar. Fora da comissão: taxa de campanha de 5% desde 28/10/2026 (era 3,5%). Ver marketplaces/shopee/TARIFAS.md."
 TABELA_PROVISORIA = True
 
 
