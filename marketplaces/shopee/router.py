@@ -217,3 +217,11 @@ def painel_destaque_desativacao_limpar():
     from marketplaces.shopee import anuncio as _an
     _an.limpar_desativacao()
     return {"ok": True}
+
+
+@router.get("/painel/plano-full")
+def painel_plano_full(meta: int = 20, todos: int = 0, vel: float = 0.2, loja: str = "techseller"):
+    try:
+        return _painel.plano_full(meta, loja, so_com_envio=not todos, vel_min=max(0.0, vel))
+    except ErroShopee as e:
+        raise _http(e)

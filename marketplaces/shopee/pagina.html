@@ -95,6 +95,18 @@ td.nome{max-width:340px;overflow:hidden;text-overflow:ellipsis;text-align:left}
   <h2>Full e previsão de reposição <span class="nota">(meta <span id="meta"></span> dias · velocidade = 40% 7 dias + 60% 30 dias · estoque válido = Full + a caminho)</span></h2>
   <label class="nota"><input type="checkbox" id="soFull" checked onchange="renderEstoque()"> só anúncios Full</label>
   <div class="card max"><table id="tEst"></table></div>
+  <h2>Plano de envio ao Full <span class="nota">(criar e agendar a entrada é manual no Seller Centre; a Shopee não tem API para isso)</span></h2>
+  <div class="card">
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:8px">
+      <label>Meta <input type="number" id="pfMeta" value="20" min="5" max="90" style="width:64px;padding:4px 6px;border:1px solid #9ca3af;border-radius:6px"> dias</label>
+      <label title="Anúncios fora do Full entram se venderem pelo menos isto por dia (venda orgânica conta)">Vel. mínima p/ entrar no Full <input type="number" id="pfVel" value="0.2" min="0" step="0.1" style="width:64px;padding:4px 6px;border:1px solid #9ca3af;border-radius:6px"> un/dia</label><label class="nota"><input type="checkbox" id="pfTodos"> incluir anúncios sem envio sugerido</label>
+      <button class="bt v" onclick="planoCarregar()">Gerar plano</button>
+      <button class="bt" onclick="planoCsv()">Baixar planilha (CSV)</button>
+      <span id="pfRes" class="nota"></span>
+    </div>
+    <div class="max"><table id="tPlano"></table></div>
+    <div class="nota">Vale para todos os anúncios que vendem, estejam ou não no Full: quem vende bem só no orgânico entra como "Novo no Full" (Full = 0). Sugestão = meta × velocidade (40% das vendas de 7 dias + 60% das de 30) − (vendável + a caminho + aguardando aprovação no Full). Reservado e não apto não contam. "Enviar" é a sugestão limitada ao seu estoque (BRZ) e pode ser editada. O modelo de importação do Seller Centre pode pedir outras colunas; ajusto quando você enviar o modelo.</div>
+  </div>
   <h2>Ads</h2>
   <div class="tiles" id="adsTiles"></div>
   <div class="cols" style="margin-top:12px">
@@ -257,6 +269,28 @@ function conta(){
   document.getElementById("conta").innerHTML=h;
 }
 
+// ═════════ PLANO DE ENVIO AO FULL ═════════
+var PLANO=null;
+function planoCarregar(){
+  var meta=document.getElementById("pfMeta").value||20,todos=document.getElementById("pfTodos").checked?1:0,vel=document.getElementById("pfVel").value||0.2;
+  document.getElementById("pfRes").textContent="Calculando…";
+  fetch("/shopee/painel/plano-full?meta="+meta+"&todos="+todos+"&vel="+vel).then(function(r){return r.json().then(function(j){if(!r.ok)throw new Error(j.detail||r.status);return j})}).then(function(j){PLANO=j;planoDesenhar()}).catch(function(e){document.getElementById("pfRes").textContent="Erro: "+e.message});
+}
+function planoDesenhar(){
+  var p=PLANO,t=p.totais,cor={critico:"neg",novo:"am",atencao:"am",ok:""};
+  document.getElementById("pfRes").innerHTML="<b>"+n(t.anuncios,0)+"</b> anúncios · <b>"+n(PLANO.itens.reduce(function(a,r){return a+(+r.enviar||0)},0),0)+"</b> unidades a enviar · "+t.criticos+" críticos · "+t.novos+" novos no Full"+(t.sem_estoque?" · <span class='neg'>"+t.sem_estoque+" sem estoque suficiente</span>":"");
+  var h="<thead><tr><th class='l'>Prioridade</th><th class='l'>SKU</th><th class='l'>Anúncio</th><th>Vendável</th><th>Reservado</th><th>Não apto</th><th>A caminho</th><th>Seu estoque</th><th>Vend. 30d</th><th>Vel./dia</th><th>Cobertura (d)</th><th>Sugestão</th><th>Enviar</th></tr></thead><tbody>";
+  p.itens.forEach(function(r,i){h+="<tr class='clicavel'><td class='l "+cor[r.prioridade]+"'>"+({critico:"Crítico",novo:"Novo no Full",atencao:"Atenção",ok:"Ok"})[r.prioridade]+"</td><td class='l' onclick='abrirAnuncio("+r.item_id+")'>"+esc(r.sku||"(sem SKU)")+"</td><td class='nome' onclick='abrirAnuncio("+r.item_id+")' title='"+esc(r.nome)+"'>"+esc(r.nome)+(r.variacao?" · "+esc(r.variacao):"")+"</td><td>"+n(r.vendavel,0)+"</td><td>"+n(r.reservado,0)+"</td><td class='"+(r.nao_apto>0?"neg":"")+"'>"+n(r.nao_apto,0)+"</td><td>"+n(r.a_caminho,0)+"</td><td class='"+(r.falta_estoque>0?"neg":"")+"' title='"+(r.falta_estoque>0?"faltam "+r.falta_estoque+" un. no seu estoque":"")+"'>"+n(r.est_vendedor,0)+"</td><td>"+n(r.v30,0)+"</td><td>"+n(r.vel_dia,2)+"</td><td>"+(r.cobertura==null?"—":n(r.cobertura,1))+"</td><td>"+n(r.sugestao,0)+"</td><td><input type='number' min='0' value='"+r.enviar+"' style='width:70px;padding:3px 5px;border:1px solid #9ca3af;border-radius:6px' onchange='PLANO.itens["+i+"].enviar=+this.value||0;planoDesenharResumo()'></td></tr>"});
+  document.getElementById("tPlano").innerHTML=h+"</tbody>";
+}
+function planoDesenharResumo(){var t=PLANO.totais;document.getElementById("pfRes").innerHTML="<b>"+n(t.anuncios,0)+"</b> anúncios · <b>"+n(PLANO.itens.reduce(function(a,r){return a+(+r.enviar||0)},0),0)+"</b> unidades a enviar · "+t.criticos+" críticos · "+t.novos+" novos no Full"+(t.sem_estoque?" · <span class='neg'>"+t.sem_estoque+" sem estoque suficiente</span>":"")}
+function planoCsv(){
+  if(!PLANO){alert("Gere o plano primeiro.");return}
+  var L=[["SKU","Anuncio","Item ID","Model ID","Prioridade","Vendavel","Reservado","Nao apto","A caminho","Seu estoque","Vendas 30d","Vel dia","Cobertura (dias)","Sugestao","Enviar"]];
+  PLANO.itens.filter(function(r){return (+r.enviar||0)>0}).forEach(function(r){L.push([r.sku,r.nome+(r.variacao?" - "+r.variacao:""),r.item_id,r.model_id,r.prioridade,r.vendavel,r.reservado,r.nao_apto,r.a_caminho,r.est_vendedor,r.v30,String(r.vel_dia).replace(".",","),r.cobertura==null?"":String(r.cobertura).replace(".",","),r.sugestao,r.enviar])});
+  var csv="﻿"+L.map(function(l){return l.map(function(c){c=String(c==null?"":c);return /[;"\n]/.test(c)?'"'+c.replace(/"/g,'""')+'"':c}).join(";")}).join("\r\n");
+  var a=document.createElement("a");a.href=URL.createObjectURL(new Blob([csv],{type:"text/csv;charset=utf-8"}));a.download="plano_envio_full_"+new Date().toISOString().slice(0,10)+".csv";a.click();
+}
 // ═════════ MODAL DO ANÚNCIO (equivalente ao modal do Meli) ═════════
 var AN=null, anPer={dias:7}, anTab={};
 var ADS_COLS=[{k:"tacos",l:"TACOS",f:function(v){return pc(v*100)},inv:1},{k:"acos",l:"ACOS",f:function(v){return pc(v*100)},inv:1},{k:"roas",l:"ROAS",f:function(v){return n(v,2)}},

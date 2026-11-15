@@ -375,7 +375,8 @@ def _estoque_linhas(sid):
     return linhas
 
 
-def estoque_e_previsao(sid, dias_hist=30):
+def estoque_e_previsao(sid, dias_hist=30, meta=None):
+    meta = meta or META_DIAS
     linhas = _vivo("estoque", lambda: _estoque_linhas(sid))
     try:
         from marketplaces.shopee import anuncio as _an
@@ -388,7 +389,7 @@ def estoque_e_previsao(sid, dias_hist=30):
     c = _db()
     agora = int(time.time())
     v7, v30 = {}, {}
-    for (dados,) in c.execute("SELECT dados FROM pedidos WHERE criado>=? AND status NOT IN ('CANCELLED','IN_CANCEL')", (agora - 30 * DIA,)):
+    for (dados,) in c.execute("SELECT dados FROM pedidos WHERE criado>=? AND status NOT IN ('CANCELLED','IN_CANCEL','UNPAID','TO_RETURN','RETURNED')", (agora - 30 * DIA,)):
         p = json.loads(dados)
         for i in p["itens"]:
             k = (i["item_id"], i["model_id"] or 0)
@@ -399,6 +400,8 @@ def estoque_e_previsao(sid, dias_hist=30):
     out = []
     for l in linhas:
         l = dict(l)
+        if l["item_id"] in sbs:                 # a flag is_fulfillment_by_shopee não é confiável: o SBS manda
+            l["full"] = True
         sb = sbs.get(l["item_id"]) if (l["full"] and por_item.get(l["item_id"]) == 1) else None
         if sb:                                   # SBS é a fonte do Full: vendável, reservado, não apto, a caminho
             l.update(est_full=sb["vendavel"], reservado=sb["reservado"], a_caminho=sb["a_caminho"] + sb["aprovacao"], nao_apto=sb["nao_apto"], fonte="SBS")
@@ -409,7 +412,7 @@ def estoque_e_previsao(sid, dias_hist=30):
         a7, a30 = v7.get(k, 0), v30.get(k, 0)
         vel = 0.4 * a7 / 7 + 0.6 * a30 / 30
         valido = l["est_full"] + l["a_caminho"]
-        sug = max(0, math.ceil(META_DIAS * vel - valido)) if l["full"] else None
+        sug = max(0, math.ceil(meta * vel - valido)) if l["full"] else None
         out.append({**l, "v7": a7, "v30": a30, "vel_dia": round(vel, 2),
                     "cobertura_dias": round(valido / vel, 1) if (l["full"] and vel > 0) else None,
                     "sugestao_full": sug})
@@ -546,3 +549,40 @@ def devolucoes(dias: int):
     return {"total": len(rows), "valor": sum(r[2] or 0 for r in rows), "reembolsadas_no_escrow": liquidadas, "valor_reembolsado_escrow": perdido,
             "por_status": [{"status": k, **v} for k, v in sorted(por_status.items(), key=lambda x: -x[1]["n"])],
             "por_motivo": [{"motivo": k, **v} for k, v in sorted(por_motivo.items(), key=lambda x: -x[1]["n"])]}
+
+
+def plano_full(meta: int = 20, loja: str = "techseller", so_com_envio: bool = True, vel_min: float = 0.2):
+    """Plano de envio ao Full para TODOS os anúncios que vendem, estejam ou não no Full hoje (venda orgânica também conta).
+    Sugestão = meta × velocidade − (vendável + a caminho + aguardando aprovação no Full); anúncio fora do Full parte de zero e
+    aparece como "novo". Limitada ao estoque da loja (BRZ). Reservado e não apto não contam. Criar a entrada é manual no Seller Centre."""
+    sid = lojas.shop_id_da(loja)
+    meta = max(5, min(int(meta), 90))
+    linhas = estoque_e_previsao(sid, meta=meta)
+    out = []
+    for l in linhas:
+        no_full = not l["full"]
+        vel = l["vel_dia"]
+        if no_full and vel < vel_min:
+            continue                                  # fora do Full e quase sem venda: não entra
+        valido = 0 if no_full else (l["est_full"] + l["a_caminho"])
+        sug = max(0, math.ceil(meta * vel - valido))
+        tem = _f(l.get("est_vendedor"))
+        enviar = int(min(sug, tem))
+        cob = None if (no_full or vel <= 0) else round(valido / vel, 1)
+        zerado = (not no_full) and valido <= 0 and vel > 0
+        if no_full:
+            prio = "novo"
+        else:
+            prio = "critico" if (zerado or (cob is not None and cob < 10)) else ("atencao" if (cob is not None and cob <= 15) else "ok")
+        out.append({"item_id": l["item_id"], "model_id": l["model_id"], "sku": l["sku"], "nome": l["nome"], "variacao": l.get("variacao", ""),
+                    "no_full": no_full, "vendavel": 0 if no_full else l["est_full"], "reservado": 0 if no_full else l["reservado"],
+                    "nao_apto": 0 if no_full else l.get("nao_apto", 0), "a_caminho": 0 if no_full else l["a_caminho"],
+                    "est_vendedor": tem, "vel_dia": vel, "v7": l["v7"], "v30": l["v30"], "cobertura": cob, "sugestao": sug,
+                    "enviar": enviar, "falta_estoque": max(0, sug - int(tem)), "prioridade": prio, "fonte": "sem Full" if no_full else l.get("fonte")})
+    ordem = {"critico": 0, "novo": 1, "atencao": 2, "ok": 3}
+    out.sort(key=lambda r: (ordem[r["prioridade"]], -r["vel_dia"] if r["prioridade"] == "novo" else (r["cobertura"] if r["cobertura"] is not None else 9999)))
+    if so_com_envio:
+        out = [r for r in out if r["sugestao"] > 0]
+    return {"meta_dias": meta, "vel_min": vel_min, "gerado_em": datetime.now(BRT).isoformat(timespec="seconds"), "itens": out,
+            "totais": {"anuncios": len(out), "unidades": sum(r["enviar"] for r in out), "sem_estoque": sum(1 for r in out if r["falta_estoque"] > 0),
+                       "criticos": sum(1 for r in out if r["prioridade"] == "critico"), "novos": sum(1 for r in out if r["prioridade"] == "novo")}}
