@@ -122,7 +122,7 @@ def _rodar(dias, loja):
         # 3) escrow (tarifas e frete) de todo pedido pago e não cancelado. Enquanto não concluído é estimativa e é refeito.
         feitos = {r[0]: r[1] for r in c.execute("SELECT order_sn,buscado FROM escrow")}
         cand = [(r[0], r[1]) for r in c.execute("SELECT order_sn,status FROM pedidos WHERE criado>=? AND status NOT IN ('CANCELLED','IN_CANCEL','UNPAID')",
-                                                (int(time.time()) - dias * DIA,))]
+                                                (int(time.time()) - min(dias, 30) * DIA,))]
         pend = [sn for sn, st in cand if sn not in feitos or (st != "COMPLETED" and time.time() - feitos[sn] > 6 * 3600)]
         _set(fase="buscando tarifas e frete (escrow)", feito=0, total=len(pend))
         def _um(sn):
@@ -174,7 +174,21 @@ def _rodar(dias, loja):
                 _set(feito=n)
         c.commit()
         c.close()
+        from marketplaces.shopee import anuncio as _an
+        parcial = []
+        _set(fase="retrato diário de visualizações", feito=0, total=0)
+        try:
+            _an.coletar_views(sid)
+        except Exception as e:
+            parcial.append("visualizações: " + api.mascarar(str(e))[:80])
+        _set(fase="Ads por anúncio (campanhas e desempenho diário)", feito=0, total=0)
+        try:
+            _an.coletar_ads(sid, min(dias, 120))
+        except Exception as e:
+            parcial.append("Ads: " + api.mascarar(str(e))[:80])
         _cache_vivo.clear()
+        if parcial:
+            _set(erro="Parcial: " + " | ".join(parcial))
         _set(fase="concluído", rodando=False, fim=time.time())
     except Exception as e:                      # nunca derruba o servidor; mostra o motivo mascarado
         _set(fase="erro", erro=api.mascarar(str(e))[:300], rodando=False, fim=time.time())
@@ -273,7 +287,7 @@ def vendas(dias: int):
         for it in p["itens"]:
             sku = it["model_sku"] or it["item_sku"] or f"(sem SKU) {it['item_id']}"
             part = _f(it["preco"]) * _f(it["qtd"]) / bruto_itens
-            x = por_sku.setdefault(sku, {"sku": sku, "nome": it["nome"], "unid": 0.0, "receita": 0.0, "comissao": 0.0, "servico": 0.0,
+            x = por_sku.setdefault(sku, {"sku": sku, "item_id": it["item_id"], "nome": it["nome"], "unid": 0.0, "receita": 0.0, "comissao": 0.0, "servico": 0.0,
                                           "frete": 0.0, "extras": 0.0, "desc": 0.0})
             x["unid"] += _f(it["qtd"])
             x["receita"] += rl * part
@@ -363,6 +377,14 @@ def _estoque_linhas(sid):
 
 def estoque_e_previsao(sid, dias_hist=30):
     linhas = _vivo("estoque", lambda: _estoque_linhas(sid))
+    try:
+        from marketplaces.shopee import anuncio as _an
+        sbs = _an.sbs_estoque(sid)
+    except Exception:
+        sbs = {}
+    por_item = {}
+    for l in linhas:
+        por_item[l["item_id"]] = por_item.get(l["item_id"], 0) + 1
     c = _db()
     agora = int(time.time())
     v7, v30 = {}, {}
@@ -376,6 +398,13 @@ def estoque_e_previsao(sid, dias_hist=30):
     c.close()
     out = []
     for l in linhas:
+        l = dict(l)
+        sb = sbs.get(l["item_id"]) if (l["full"] and por_item.get(l["item_id"]) == 1) else None
+        if sb:                                   # SBS é a fonte do Full: vendável, reservado, não apto, a caminho
+            l.update(est_full=sb["vendavel"], reservado=sb["reservado"], a_caminho=sb["a_caminho"] + sb["aprovacao"], nao_apto=sb["nao_apto"], fonte="SBS")
+        else:
+            l.setdefault("nao_apto", 0)
+            l["fonte"] = "item"
         k = (l["item_id"], l["model_id"] or 0)
         a7, a30 = v7.get(k, 0), v30.get(k, 0)
         vel = 0.4 * a7 / 7 + 0.6 * a30 / 30

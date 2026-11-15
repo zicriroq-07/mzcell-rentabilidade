@@ -153,3 +153,47 @@ def painel_status():
 @router.get("/painel/pedido/{sn}")
 def painel_pedido(sn: str):
     return _painel.pedido(sn)
+
+
+class _MapaIn(BaseModel):
+    autor: str = ""
+    texto: str
+    dados: dict = {}
+
+
+class _PosicaoIn(BaseModel):
+    pagina: int = 1
+    posicao: int = 0
+    keyword: str = ""
+
+
+@router.get("/painel/anuncio/{item_id}")
+def painel_anuncio(item_id: int, de: str = None, ate: str = None, loja: str = "techseller"):
+    from marketplaces.shopee import anuncio as _an
+    try:
+        return _an.anuncio(item_id, de, ate, loja)
+    except ErroShopee as e:
+        raise _http(e)
+
+
+@router.post("/painel/anuncio/{item_id}/mapa")
+def painel_mapa(item_id: int, corpo: _MapaIn):
+    from marketplaces.shopee import anuncio as _an
+    if not corpo.texto.strip():
+        raise HTTPException(status_code=400, detail="Escreva a alteração feita.")
+    _an.registrar_mapa(item_id, corpo.autor, corpo.texto, corpo.dados)
+    return {"ok": True}
+
+
+@router.post("/painel/mapa/{mid}/favoritar")
+def painel_mapa_fav(mid: int):
+    from marketplaces.shopee import anuncio as _an
+    _an.favoritar_mapa(mid)
+    return {"ok": True}
+
+
+@router.post("/painel/anuncio/{item_id}/posicao")
+def painel_posicao(item_id: int, corpo: _PosicaoIn):
+    from marketplaces.shopee import anuncio as _an
+    _an.salvar_posicao(item_id, corpo.pagina, corpo.posicao, corpo.keyword)
+    return {"ok": True}
