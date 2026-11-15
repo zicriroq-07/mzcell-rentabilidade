@@ -329,6 +329,32 @@ function renderAn(){
   var mgLinha='<div class="nota" style="margin-top:8px">Margem de contribuição (pelas tarifas do escrow): <b>'+(mg.margem!=null?rs(mg.margem)+" · "+pc(mg.margem_pct*100):"— (sem CMV na base ou sem escrow)")+"</b> no período atual; anterior: "+(mgB.margem!=null?rs(mgB.margem)+" · "+pc(mgB.margem_pct*100):"—")+(mg.pedidos_sem_escrow?" · "+mg.pedidos_sem_escrow+" pedido(s) sem escrow":"")+"</div>";
   var pos=d.posicao||{},posTxt=pos.posicao?("p"+(pos.pagina||1)+" #"+pos.posicao):"Sem registro";
   var posH='<div class="pos"><span>Posição do anúncio: <b>'+posTxt+'</b></span><input type="number" id="pgP" value="'+(pos.pagina||1)+'" min="1" style="width:70px" title="Página"><input type="number" id="pgN" value="'+(pos.posicao||"")+'" min="1" style="width:84px" placeholder="Posição"><input type="text" id="pgK" value="'+esc(pos.keyword||"")+'" placeholder="Palavra-chave" style="flex:1;min-width:120px"><button class="bt" onclick="anPos()">Salvar</button></div><div class="nota">A Shopee não tem API de posição de busca: o registro é manual (pode virar um robô como o Radar do Meli).</div>';
+  // DRE do anúncio (com cancelados, não pagos, devoluções e reembolsos)
+  function dreH(){
+    var a=A.dre,b=B.dre;if(!a)return "";
+    var L=[["Pedidos feitos a preço cheio","cheio",0,0],["(−) Descontos do vendedor","desconto",1,0],["= Pedidos feitos (valor de venda)","feitos",0,1],
+     ["(−) Não pagos (cancelamento automático)","nao_pagos",1,0,"nao_pago"],["(−) Cancelados","cancelados",1,0,"cancelado"],["(−) Em devolução (a caminho)","em_devolucao",1,0,"devolucao"],["(−) Reembolsados (devolução processada)","reembolsados",1,0],
+     ["= Vendas válidas","validas",0,1],["(−) Cupom do vendedor","cupom",1,0],["(−) Pedidos sem tarifa carregada","sem_escrow",1,0],["= Receita líquida","receita_liquida",0,1],
+     ["(−) Comissão (18,6%)","comissao",1,0],["(−) Comissão lançada na taxa de serviço (1,4%)","comissao_extra",1,0],["(−) Taxa fixa por item","fixo",1,0],["(−) Campanha Destaque","destaque",1,0],
+     ["(−) Outras tarifas de serviço e ajuste de parcelamento","_outras",1,0],["(−) Frete do vendedor","frete",1,0],["(−) Taxas extras","extras",1,0],["(−) Imposto","imposto",1,0],["(−) CMV","cmv",1,0],
+     ["= Margem de contribuição","margem",0,1],["(−) Ads (gasto real das campanhas do anúncio)","ads",1,0],["= Margem após Ads","margem_apos_ads",0,1]];
+    function val(r,k){return k=="_outras"?(r.outras||0)+(r.servico_ajuste||0):r[k]}
+    var topo=true,h="";
+    L.forEach(function(l){
+      var k=l[1],va=val(a,k),vb=val(b,k);
+      if((k=="sem_escrow"||k=="reembolsados"||k=="cupom"||k=="extras")&&!va&&!vb)return;
+      if(k=="receita_liquida")topo=false;
+      var base=topo?a.feitos:a.receita_liquida,bb=topo?b.feitos:b.receita_liquida;
+      var sinal=l[2]?-1:1,qn=l[4]&&a.n?" <span class='nota'>("+n(a.n[l[4]],0)+" ped.)</span>":"";
+      var pa=(va!=null&&base)?pc(Math.abs(va)<0.005?0:va/base*100):"—";
+      var dlt=(va!=null&&vb!=null&&vb)?mxVar(va,vb,l[2]?1:0,0):'<span class="mp">—</span>';
+      var neg=(k=="margem"||k=="margem_apos_ads")&&va!=null&&va<0;
+      h+='<tr'+(l[3]?' class="t"':"")+"><td class='l'>"+l[0]+qn+"</td><td class='"+(neg?"neg":"")+"'>"+(va==null?"—":rs(Math.abs(va)<0.005?0:sinal*va))+"</td><td>"+pa+"</td><td>"+(vb==null?"—":rs(Math.abs(vb)<0.005?0:sinal*vb))+"</td><td>"+dlt+"</td></tr>";
+    });
+    return '<section class="cd"><h4>DRE do anúncio <span class="nota">'+dmy(AN.rot.A[0])+" a "+dmy(AN.rot.A[1])+" · comparado a "+dmy(AN.rot.B[0])+" a "+dmy(AN.rot.B[1])+"</span></h4>"+
+      '<table class="dre"><thead><tr><th class="l">Linha</th><th>Atual</th><th title="Até Vendas válidas: % dos pedidos feitos. Daí em diante: % da receita líquida.">%</th><th>P2</th><th>Variação</th></tr></thead><tbody>'+h+"</tbody></table>"+
+      '<div class="nota" style="margin-top:6px">% das linhas até "Vendas válidas" é sobre os pedidos feitos; depois, sobre a receita líquida. Cancelados, não pagos e reembolsados não geram tarifa (o escrow vem zerado): entram só como dedução da receita. Ads é o gasto real das campanhas deste anúncio no período.'+(a.sem_cmv?" SKU sem CMV na base do Grupo: margem não calculada.":"")+"</div></section>"}
+  var dreCard=dreH();
   // validador da comissão da última venda
   var vl=dz.validacao,uv=dz.ultima_item||dz.ultima_loja,valH="";
   if(vl&&uv){
@@ -364,7 +390,7 @@ function renderAn(){
     (d.mapa.length?d.mapa.map(function(m){var dd=m.dados||{},ch=[];[["Período",dd.periodo],["Preço médio",dd.preco_medio!=null?rs(dd.preco_medio):null],["Margem",dd.margem_pct!=null?pc(dd.margem_pct*100):null],["TACOS",dd.tacos!=null?pc(dd.tacos*100):null],["ROAS",dd.roas!=null?n(dd.roas,2):null],["Unidades",dd.unidades!=null?n(dd.unidades,0):null],["Visitas",dd.visitas!=null?n(dd.visitas,0):null],["Conversão",dd.conversao!=null?pc(dd.conversao*100):null],["Receita",dd.receita!=null?rs(dd.receita):null]].forEach(function(c){if(c[1])ch.push('<span class="chip">'+c[0]+" <b>"+c[1]+"</b></span>")});
       return '<div class="mi"><div class="av">'+esc((m.autor||"?").slice(0,2).toUpperCase())+'</div><div><div><b>'+esc(m.autor)+'</b> <span class="nota">'+new Date(m.ts*1000).toLocaleString("pt-BR")+'</span> <a onclick="anFav('+m.id+')" style="cursor:pointer">'+(m.fav?"★":"☆")+'</a></div><div>'+esc(m.texto)+'</div><div class="chips">'+ch.join("")+"</div></div></div>"}).join(""):'<div class="nota">Nenhuma alteração registrada.</div>')+"</section>";
   document.getElementById("anCorpo").innerHTML='<div class="cap">Últimos 30 dias (fixo)</div><div class="strip">'+K.map(function(k){return '<div class="kpi"><div class="l">'+k[0]+'</div><div class="v">'+k[1]+"</div></div>"}).join("")+'</div><div class="pb">'+per+"</div>"+
-    '<div class="mx"><div><section class="cd"><h4>Dados de ADS '+menu+"</h4>"+adsH+'</section><section class="cd"><h4>Dados de vendas</h4>'+mxTab(vcols,A,B,[{k:"P3",o:d.P3},{k:"P4",o:d.P4}])+'<div class="nota" style="margin-top:6px">'+visNota+"</div>"+mgLinha+posH+"</section>"+valH+fullH+prom+"</div>"+simH+"</div>"+mapaH;
+    '<div class="mx"><div><section class="cd"><h4>Dados de ADS '+menu+"</h4>"+adsH+'</section><section class="cd"><h4>Dados de vendas</h4>'+mxTab(vcols,A,B,[{k:"P3",o:d.P3},{k:"P4",o:d.P4}])+'<div class="nota" style="margin-top:6px">'+visNota+"</div>"+mgLinha+posH+"</section>"+dreCard+valH+fullH+prom+"</div>"+simH+"</div>"+mapaH;
   calcAnSim();
 }
 function prox1(hoje){var a=new Date(hoje+"T12:00:00");return isoLocal(new Date(a.getFullYear(),a.getMonth()+1,1))}

@@ -260,14 +260,20 @@ def _margem_item(c, peds, item_id, d0, d1, base, aliq):
         lote = sns[k:k + 400]
         for sn, j in c.execute(f"SELECT order_sn,dados FROM escrow WHERE order_sn IN ({','.join('?' * len(lote))})", lote):
             esc[sn] = json.loads(j)
-    t = dict(receita=0.0, comissao=0.0, servico=0.0, frete=0.0, extras=0.0, imposto=0.0, cmv=0.0, unid=0.0, pedidos=0)
+    t = dict(receita=0.0, comissao=0.0, servico=0.0, frete=0.0, extras=0.0, imposto=0.0, cmv=0.0, unid=0.0, pedidos=0, cupom=0.0, reembolsado=0.0,
+             sem_escrow_valor=0.0, s_comissao_extra=0.0, s_fixo=0.0, s_destaque=0.0, s_outras=0.0)
     sem_cmv, sem_escrow = False, 0
     for p in peds:
         if p["order_sn"] not in sns:
             continue
         e = esc.get(p["order_sn"])
-        if not e or _f(e.get("seller_return_refund")) < 0:
+        meu_valor = sum(_f(i["preco"]) * _f(i["qtd"]) for i in p["itens"] if i["item_id"] == item_id)
+        if e and _f(e.get("seller_return_refund")) < 0:       # estorno ao comprador já processado
+            t["reembolsado"] += meu_valor
+            continue
+        if not e:
             sem_escrow += 1
+            t["sem_escrow_valor"] += meu_valor
             continue
         tot_itens = sum(_f(i["preco"]) * _f(i["qtd"]) for i in p["itens"]) or 1
         rl = _f(e.get("order_selling_price")) - _f(e.get("voucher_from_seller"))
@@ -283,6 +289,12 @@ def _margem_item(c, peds, item_id, d0, d1, base, aliq):
             if cm is None:
                 sem_cmv = True
             t["receita"] += rl * part
+            t["cupom"] += _f(e.get("voucher_from_seller")) * part
+            dec = decompor_tarifas(e, part, 1.0, 1.0)            # rl=1 e qtd=1: devolve valores em R$ já rateados
+            t["s_comissao_extra"] += dec["comissao_pct"] - _f(e.get("commission_fee")) * part
+            t["s_fixo"] += dec["fixo"]
+            t["s_destaque"] += dec["destaque_pct"]
+            t["s_outras"] += dec["outras_un"]
             t["comissao"] += _f(e.get("commission_fee")) * part
             t["servico"] += servico * part
             t["frete"] += frete * part
@@ -557,6 +569,42 @@ def estado_destaque(ult_loja, cfg, hoje):
     return "ativa_aguardando", ((prev - hoje).days if prev else None)
 
 
+def _dre(c, peds, item_id, d0, d1, base, aliq, ads_gasto):
+    """DRE do anúncio: do valor dos pedidos feitos até a margem após Ads (Ads real das campanhas do anúncio)."""
+    pedidos = [p for p in peds if d0 <= painel._dia(p["criado"]) <= d1 and any(i["item_id"] == item_id for i in p["itens"])]
+    cheio = venda = nao_pago = cancelado = devolucao = 0.0
+    n = dict(pedidos=0, nao_pago=0, cancelado=0, devolucao=0)
+    for p in pedidos:
+        meus = [i for i in p["itens"] if i["item_id"] == item_id]
+        val = sum(_f(i["preco"]) * _f(i["qtd"]) for i in meus)
+        cheio += sum(_f(i["preco_cheio"]) * _f(i["qtd"]) for i in meus) or val
+        venda += val
+        n["pedidos"] += 1
+        st = p["status"]
+        if st == "UNPAID" or (st in ("CANCELLED", "IN_CANCEL") and (p.get("motivo_cancel") or "") == "Unpaid Order"):
+            nao_pago += val
+            n["nao_pago"] += 1
+        elif st in ("CANCELLED", "IN_CANCEL"):
+            cancelado += val
+            n["cancelado"] += 1
+        elif st in ("TO_RETURN", "RETURNED"):
+            devolucao += val
+            n["devolucao"] += 1
+    m = _margem_item(c, peds, item_id, d0, d1, base, aliq)
+    validas = venda - nao_pago - cancelado - devolucao - m["reembolsado"]
+    rl = m["receita"]
+    margem = m["margem"]
+    ads = ads_gasto
+    return {"cheio": cheio, "desconto": cheio - venda, "feitos": venda, "nao_pagos": nao_pago, "cancelados": cancelado, "em_devolucao": devolucao,
+            "reembolsados": m["reembolsado"], "validas": validas, "cupom": m["cupom"], "sem_escrow": m["sem_escrow_valor"], "receita_liquida": rl,
+            "comissao": m["comissao"], "comissao_extra": m["s_comissao_extra"], "fixo": m["s_fixo"], "destaque": m["s_destaque"], "outras": m["s_outras"],
+            "servico_ajuste": m["servico"] - (m["s_comissao_extra"] + m["s_fixo"] + m["s_destaque"] + m["s_outras"]),
+            "frete": m["frete"], "extras": m["extras"], "imposto": m["imposto"], "cmv": m["cmv"], "margem": margem, "margem_pct": (margem / rl if margem is not None and rl else None),
+            "ads": ads, "margem_apos_ads": (margem - ads) if margem is not None else None,
+            "margem_apos_ads_pct": ((margem - ads) / rl if margem is not None and rl else None), "pedidos_sem_escrow": m["pedidos_sem_escrow"],
+            "sem_cmv": m["sem_cmv"], "n": n, "unidades": m["unid"]}
+
+
 # ─── avisos e PIVO ───────────────────────────────────────────────────────────
 
 def _pivo(cat, camp_ativas):
@@ -648,6 +696,7 @@ def anuncio(item_id: int, de: str = None, ate: str = None, loja: str = "techsell
     P30 = _periodo(c, peds, item_id, iso(de30), iso(ate30))
     for o, d0, d1 in ((A, de_d, ate_d), (Bp, B0, B1)):
         o["margem"] = _margem_item(c, peds, item_id, iso(d0), iso(d1), base, aliq)
+        o["dre"] = _dre(c, peds, item_id, iso(d0), iso(d1), base, aliq, o["ads_total"])
     camps = [dict(zip(("campaign_id", "nome", "status", "local", "orcamento", "roas_alvo", "inicio", "fim"), r)) for r in
              c.execute("SELECT campaign_id,nome,status,local,orcamento,roas_alvo,inicio,fim FROM ads_camp WHERE item_id=? ORDER BY status='ongoing' DESC, campaign_id DESC", (item_id,))]
     ativas = sum(1 for x in camps if x["status"] == "ongoing")
