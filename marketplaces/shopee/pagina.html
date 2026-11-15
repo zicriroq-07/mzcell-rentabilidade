@@ -297,10 +297,19 @@ function renderAn(){
   var d=AN,it=d.item,A=d.A,B=d.B,p30=d.p30,sim=d.sim;
   var ptsC={critico:"critico",atencao:"atencao",info:"info"};
   var avs=d.avisos.map(function(a){return '<span class="pill '+(ptsC[a.nivel]||"")+'">'+esc(a.texto)+"</span>"}).join("");
+  var dz=d.destaque||{},txd=dz.taxa?pc(dz.taxa*100):"",ul=dz.ultima_loja,ulTxt=ul?(dmy(ul.dia)+" "+ul.hora):"";
+  var tipd="Pela cobrança da última venda da loja"+(ul?" (pedido "+ul.order_sn+", "+ulTxt+")":"")+". A Shopee não informa a inscrição por API.";
+  var est=dz.estado,dd=dz.desativacao||{},cl="info",tx="";
+  if(est=="ativa"){cl="atencao";tx="ativa · taxa "+txd+(dz.desde?" desde "+dmy(dz.desde):"")+" · última venda ("+ulTxt+") pagou a taxa"}
+  else if(est=="ativa_aguardando"){cl="atencao";tx="ativa · taxa "+txd+" · desativação pedida em "+dmy(dd.solicitada_em)+", efeito previsto "+dmy(dd.efeito_previsto)+(dz.dias_estado!=null?" (faltam "+dz.dias_estado+" dias)":"")}
+  else if(est=="cobrando_apos_previsto"){cl="critico";tx="ainda cobrada "+(dz.dias_estado||0)+" dia(s) após o previsto ("+dmy(dd.efeito_previsto)+") · última venda ("+ulTxt+") pagou "+txd}
+  else if(est=="desativada"){cl="info";tx="desativada · última venda ("+ulTxt+") sem a taxa"}
+  else{cl="info";tx="não ativa · última venda ("+ulTxt+") sem a taxa"}
+  var destH='<span class="pill '+cl+'" title="'+esc(tipd)+'"><b>Campanha Destaque:</b> '+tx+"</span>";
   var pv=d.pivo,letras=pv.grupos.map(function(g){var tip=g.nome+"\n"+g.partes.map(function(p){return (p.ok?"[ok] ":"[falta] ")+p.nome+": "+p.detalhe}).join("\n");return '<span class="pl'+(g.ok?" ok":"")+'" title="'+esc(tip)+'">'+g.id+"</span>"}).join("");
   var pivoH='<span class="pivo" title="'+esc(pv.passa?"Passa no PIVO":"Atenção:\n"+pv.atencao.join("\n"))+'"><b>PIVO</b>'+letras+'<span style="margin-left:6px;color:'+(pv.passa?"var(--verde)":"var(--ambar)")+'">'+(pv.passa?"completo":"atenção · "+pv.pontos+"/"+pv.total)+"</span></span>";
   document.getElementById("anTopo").innerHTML='<div class="mh">'+(it.foto?'<img src="'+esc(it.foto)+'" alt="">':"")+'<div class="info"><div class="tt">'+esc(it.titulo)+'</div><div class="mt">'+esc(d.sku)+" · item "+it.item_id+(it.full||d.full?' · <span class="tag full">Full</span>':"")+" · "+esc(it.status)+(it.nota?" · nota "+n(it.nota,1)+" ("+n(it.comentarios,0)+" avaliações)":"")+'</div></div><div style="margin-right:34px"><button class="bt v" onclick="window.open(\''+d.link+'\',\'_blank\')">Link do anúncio ↗</button> <button class="bt" onclick="abrirAnuncio(AN.id,AN.periodo.de,AN.periodo.ate)">↻ Atualizar</button></div></div>'+
-    '<div class="avs">'+pivoH+avs+"</div>";
+    '<div class="avs">'+pivoH+destH+avs+"</div>";
   // faixa fixa 30 dias
   var orgs=Math.max(0,p30.unidades-p30.vads),roasObj=sim.roas_objetivo;
   var K=[["Vendas por ADS (ped.)",n(p30.vads,0)],["Vendas orgânicas",p30.unidades>=p30.vads?n(orgs,0):"—"],["Receita por ADS",rs(p30.receita_publi)],["Investimento",rs(p30.ads_total)],["ACOS",p30.receita_publi>0?pc(p30.ads_total/p30.receita_publi*100):"—"],["TACOS",p30.receita>0?pc(p30.tacos*100):"—"],["ROAS",p30.ads_total>0?n(p30.roas,2):"—"],["ROAS objetivo",roasObj>0?n(roasObj,2):"—"]];
@@ -320,6 +329,19 @@ function renderAn(){
   var mgLinha='<div class="nota" style="margin-top:8px">Margem de contribuição (pelas tarifas do escrow): <b>'+(mg.margem!=null?rs(mg.margem)+" · "+pc(mg.margem_pct*100):"— (sem CMV na base ou sem escrow)")+"</b> no período atual; anterior: "+(mgB.margem!=null?rs(mgB.margem)+" · "+pc(mgB.margem_pct*100):"—")+(mg.pedidos_sem_escrow?" · "+mg.pedidos_sem_escrow+" pedido(s) sem escrow":"")+"</div>";
   var pos=d.posicao||{},posTxt=pos.posicao?("p"+(pos.pagina||1)+" #"+pos.posicao):"Sem registro";
   var posH='<div class="pos"><span>Posição do anúncio: <b>'+posTxt+'</b></span><input type="number" id="pgP" value="'+(pos.pagina||1)+'" min="1" style="width:70px" title="Página"><input type="number" id="pgN" value="'+(pos.posicao||"")+'" min="1" style="width:84px" placeholder="Posição"><input type="text" id="pgK" value="'+esc(pos.keyword||"")+'" placeholder="Palavra-chave" style="flex:1;min-width:120px"><button class="bt" onclick="anPos()">Salvar</button></div><div class="nota">A Shopee não tem API de posição de busca: o registro é manual (pode virar um robô como o Radar do Meli).</div>';
+  // validador da comissão da última venda
+  var vl=dz.validacao,uv=dz.ultima_item||dz.ultima_loja,valH="";
+  if(vl&&uv){
+    valH='<section class="cd"><h4>Validador da comissão — última venda do '+esc(dz.validacao_de)+' <span class="nota">'+(vl.ok?"tarifas conferem com a tabela":"há divergência com a tabela")+"</span></h4>"+
+      '<div class="nota" style="margin-bottom:6px">Pedido <b>'+esc(uv.order_sn)+"</b> · "+dmy(uv.dia)+" "+esc(uv.hora)+" · "+esc(uv.pagamento)+(uv.parcelas&&uv.parcelas!="N/A"?" "+esc(uv.parcelas):"")+" · preço líquido "+rs(uv.preco_un)+" · "+esc(uv.status)+"</div>"+
+      '<table><thead><tr><th class="l">Cobrança</th><th>Esperado (tabela)</th><th>Cobrado</th><th>Situação</th></tr></thead><tbody>'+
+      vl.itens.map(function(i){return "<tr><td class='l'>"+esc(i.campo)+"</td><td>"+esc(i.esperado)+"</td><td>"+esc(i.cobrado)+"</td><td class='"+(i.ok?"pos":"neg")+"'>"+(i.ok?"✓ confere":"✗ diverge")+"</td></tr>"}).join("")+
+      "<tr><td class='l'>Campanha Destaque</td><td>"+(est=="desativada"||est=="inativa"?"sem taxa":"conforme inscrição")+"</td><td>"+(uv.cobrou_destaque?pc(uv.destaque_pct*100):"não cobrada")+"</td><td class='"+(uv.cobrou_destaque?"am":"pos")+"'>"+(uv.cobrou_destaque?"cobrando":"sem cobrança")+"</td></tr></tbody></table>"+
+      vl.obs.map(function(o){return '<div class="nota" style="margin-top:6px">'+esc(o)+"</div>"}).join("")+
+      '<div style="margin-top:10px;border-top:1px solid var(--borda);padding-top:8px"><b style="font-size:12px">Desativação da campanha Destaque</b><div class="nota">Registre quando pediu no Seller Centre. O painel avisa se a Shopee ainda cobrar depois da data prevista.</div>'+
+      (dd.solicitada_em?'<div style="margin:6px 0">Solicitada em <b>'+dmy(dd.solicitada_em)+"</b> · efeito previsto <b>"+dmy(dd.efeito_previsto)+'</b> <button class="bt" onclick="anDesativLimpar()">Remover registro</button></div>':
+        '<div class="pos"><label>Solicitada em <input type="date" id="dsSol" value="'+d.hoje+'"></label><label>Efeito previsto <input type="date" id="dsPrev" value="'+prox1(d.hoje)+'"></label><button class="bt v" onclick="anDesativ()">Registrar</button></div>')+"</div></section>";
+  }
   // Full
   var f=d.full,fullH="";
   if(f){fullH='<section class="cd"><h4>Full (SBS) <span class="nota">meta '+f.meta_dias+" dias · velocidade 40% 7d + 60% 30d</span></h4>"+
@@ -332,23 +354,27 @@ function renderAn(){
   var regrasH=(sim.regras||[]).length?'<details style="margin-top:8px"><summary class="nota" style="cursor:pointer">Tarifas da última venda, por regra (a Shopee não informa os nomes)</summary><table style="margin-top:6px"><thead><tr><th class="l">Regra</th><th>R$/un</th><th>% do preço</th></tr></thead><tbody>'+sim.regras.map(function(r){return "<tr><td class='l' title='"+esc(r.nome)+"'>"+esc(r.nome)+" <span class='nota'>("+esc(r.rule_id)+")</span></td><td>"+n(r.valor_un,2)+"</td><td>"+pc(r.pct*100)+"</td></tr>"}).join("")+'</tbody></table><div class="nota">Nomes inferidos pelo comportamento nos pedidos (percentual constante ou valor fixo). Confirme no Seller Centre → detalhes do pedido.</div></details>':"";
   var simH='<aside class="cd"><h4>Simulação do cenário'+(sim.sku?' <span class="nota">CMV pela base do Grupo · '+esc(sim.sku)+"</span>":"")+'</h4><div class="sg">'+
     fld("Preço simulado (R$)","s-preco",sim.preco.toFixed(2),"0.01")+fld("CMV (R$)","s-cmv",(sim.cmv==null?0:sim.cmv).toFixed(2),"0.01")+fld("Imposto (%)","s-imp",(sim.imposto_pct*100).toFixed(2),"0.01")+fld("Comissão total (%)","s-com",(sim.comissao_pct*100).toFixed(2),"0.01")+
-    fld("Taxa fixa por item (R$)","s-fixo",sim.fixo.toFixed(2),"0.01")+fld("Campanha Destaque (%)","s-dest",(sim.destaque_pct*100).toFixed(2),"0.01")+fld("Outras taxas de serviço (R$/un)","s-outras",sim.outras_un.toFixed(2),"0.01")+
+    fld("Taxa fixa por item (R$)","s-fixo",sim.fixo.toFixed(2),"0.01")+'<div class="sf"><label>Campanha Destaque (%)</label><div style="display:flex;gap:6px;align-items:center"><input type="number" id="s-dest" value="'+(sim.destaque_pct*100).toFixed(2)+'" step="0.01" oninput="calcAnSim()" style="min-width:0"><label style="white-space:nowrap;margin:0"><input type="checkbox" id="s-dest-on" '+(dz.ativa?"checked":"")+' onchange="calcAnSim()" style="width:auto"> participa</label></div></div>'+fld("Outras taxas de serviço (R$/un)","s-outras",sim.outras_un.toFixed(2),"0.01")+
     fld("Frete do vendedor (R$)","s-frete",sim.frete.toFixed(2),"0.01")+fld("Taxas extras (R$/un)","s-ext",sim.extras.toFixed(2),"0.01")+fld("Cupom do vendedor (R$/un)","s-cup",sim.cupom.toFixed(2),"0.01")+
     fld("TACOS 30 dias (%)","s-tacos",(sim.tacos30*100).toFixed(2),"0.01")+"</div>"+(sim.cmv==null?'<div class="aviso" style="margin-top:8px">SKU sem CMV na base do Grupo: informe o CMV manualmente.</div>':"")+
-    '<div class="so" id="simOut"></div><div class="nota" style="margin-top:8px">Base: '+esc(sim.origem)+'. Comissão total = comissão + 1,4% que a Shopee lança na taxa de serviço (20% no total). O Destaque era 3,5% até 27/10 e é 5% desde 28/10/2026.</div>'+regrasH+
+    '<div class="so" id="simOut"></div><div class="nota" style="margin-top:8px">Base: '+esc(sim.origem)+'. Comissão total = comissão + 1,4% que a Shopee lança na taxa de serviço (20% no total). Destaque (histórico da loja, pela cobrança dos pedidos): '+(dz.historico||[]).filter(function(g){return g.pct>0}).map(function(g){return pc(g.pct*100)+" de "+dmy(g.de)+" a "+(g.ate>=d.periodo.ate?"hoje":dmy(g.ate))}).join(" · ")+'. Desmarque "participa" para simular o anúncio fora da campanha.</div>'+regrasH+
     '<div class="nota" style="margin-top:6px"><a onclick="anUsarMedias()">Usar médias do período selecionado</a> · <a onclick="anUsarUltima()">Usar valores da última venda</a></div></aside>';
   // mapa
   var mapaH='<section class="cd mapa"><h4>Mapa de alterações</h4><textarea id="mpTxt" placeholder="Descreva a alteração feita (título, imagens, preço, campanha, ADS...)"></textarea><div style="margin:6px 0"><button class="bt v" onclick="anMapa()">Registrar alteração</button></div>'+
     (d.mapa.length?d.mapa.map(function(m){var dd=m.dados||{},ch=[];[["Período",dd.periodo],["Preço médio",dd.preco_medio!=null?rs(dd.preco_medio):null],["Margem",dd.margem_pct!=null?pc(dd.margem_pct*100):null],["TACOS",dd.tacos!=null?pc(dd.tacos*100):null],["ROAS",dd.roas!=null?n(dd.roas,2):null],["Unidades",dd.unidades!=null?n(dd.unidades,0):null],["Visitas",dd.visitas!=null?n(dd.visitas,0):null],["Conversão",dd.conversao!=null?pc(dd.conversao*100):null],["Receita",dd.receita!=null?rs(dd.receita):null]].forEach(function(c){if(c[1])ch.push('<span class="chip">'+c[0]+" <b>"+c[1]+"</b></span>")});
       return '<div class="mi"><div class="av">'+esc((m.autor||"?").slice(0,2).toUpperCase())+'</div><div><div><b>'+esc(m.autor)+'</b> <span class="nota">'+new Date(m.ts*1000).toLocaleString("pt-BR")+'</span> <a onclick="anFav('+m.id+')" style="cursor:pointer">'+(m.fav?"★":"☆")+'</a></div><div>'+esc(m.texto)+'</div><div class="chips">'+ch.join("")+"</div></div></div>"}).join(""):'<div class="nota">Nenhuma alteração registrada.</div>')+"</section>";
   document.getElementById("anCorpo").innerHTML='<div class="cap">Últimos 30 dias (fixo)</div><div class="strip">'+K.map(function(k){return '<div class="kpi"><div class="l">'+k[0]+'</div><div class="v">'+k[1]+"</div></div>"}).join("")+'</div><div class="pb">'+per+"</div>"+
-    '<div class="mx"><div><section class="cd"><h4>Dados de ADS '+menu+"</h4>"+adsH+'</section><section class="cd"><h4>Dados de vendas</h4>'+mxTab(vcols,A,B,[{k:"P3",o:d.P3},{k:"P4",o:d.P4}])+'<div class="nota" style="margin-top:6px">'+visNota+"</div>"+mgLinha+posH+"</section>"+fullH+prom+"</div>"+simH+"</div>"+mapaH;
+    '<div class="mx"><div><section class="cd"><h4>Dados de ADS '+menu+"</h4>"+adsH+'</section><section class="cd"><h4>Dados de vendas</h4>'+mxTab(vcols,A,B,[{k:"P3",o:d.P3},{k:"P4",o:d.P4}])+'<div class="nota" style="margin-top:6px">'+visNota+"</div>"+mgLinha+posH+"</section>"+valH+fullH+prom+"</div>"+simH+"</div>"+mapaH;
   calcAnSim();
 }
+function prox1(hoje){var a=new Date(hoje+"T12:00:00");return isoLocal(new Date(a.getFullYear(),a.getMonth()+1,1))}
+function anDesativ(){var s=document.getElementById("dsSol").value,p=document.getElementById("dsPrev").value;if(!s||!p){alert("Informe as duas datas.");return}
+  fetch("/shopee/painel/destaque/desativacao",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({solicitada_em:s,efeito_previsto:p})}).then(function(){abrirAnuncio(AN.id,AN.periodo.de,AN.periodo.ate)})}
+function anDesativLimpar(){fetch("/shopee/painel/destaque/desativacao",{method:"DELETE"}).then(function(){abrirAnuncio(AN.id,AN.periodo.de,AN.periodo.ate)})}
 function anCol(k,on){var e=adsEsc();if(on){if(e.length>=7)return;e.push(k)}else{if(e.length<=1)return;e=e.filter(function(x){return x!=k})}localStorage.setItem("shpAdsCols",JSON.stringify(e));var m=document.getElementById("anMenu").style.display;renderAn();document.getElementById("anMenu").style.display=m}
 function anNum(id){var v=parseFloat(document.getElementById(id).value);return isNaN(v)?0:v}
 function calcAnSim(){
-  var p=anNum("s-preco"),cmv=anNum("s-cmv"),imp=anNum("s-imp")/100,com=anNum("s-com")/100,fixo=anNum("s-fixo"),dest=anNum("s-dest")/100,outras=anNum("s-outras"),fr=anNum("s-frete"),ex=anNum("s-ext"),cup=anNum("s-cup"),tc=anNum("s-tacos")/100;
+  var p=anNum("s-preco"),cmv=anNum("s-cmv"),imp=anNum("s-imp")/100,com=anNum("s-com")/100,fixo=anNum("s-fixo"),dest=(document.getElementById("s-dest-on").checked?anNum("s-dest"):0)/100,outras=anNum("s-outras"),fr=anNum("s-frete"),ex=anNum("s-ext"),cup=anNum("s-cup"),tc=anNum("s-tacos")/100;
   var taxas=p*com+fixo+p*dest+outras;
   var antes=p-cup-cmv-p*imp-taxas-fr-ex,res=antes-p*tc,mp=p>0?res/p:0,mAntes=p>0?antes/p:0;
   var be=mAntes>0?1/mAntes:null;
@@ -360,7 +386,7 @@ function calcAnSim(){
     '<div class="sr"><span>Tarifas da Shopee</span><span>'+rs(taxas)+" · "+pc(p>0?taxas/p*100:0)+" do preço</span></div>"+
     '<div class="nota">Comissão '+rs(p*com)+" · taxa fixa "+rs(fixo)+" · Destaque "+rs(p*dest)+""+" · imposto "+rs(p*imp)+" · Ads "+rs(p*tc)+" por unidade</div>";
 }
-function anSet(m){Object.keys(m).forEach(function(k){document.getElementById(k).value=m[k]});calcAnSim()}
+function anSet(m){Object.keys(m).forEach(function(k){document.getElementById(k).value=m[k]});var cb=document.getElementById("s-dest-on");if(cb&&AN.destaque)cb.checked=!!AN.destaque.ativa;calcAnSim()}
 function anUsarUltima(){var s=AN.sim;anSet({"s-preco":s.preco.toFixed(2),"s-cmv":(s.cmv==null?0:s.cmv).toFixed(2),"s-imp":(s.imposto_pct*100).toFixed(2),"s-com":(s.comissao_pct*100).toFixed(2),"s-fixo":s.fixo.toFixed(2),"s-dest":(s.destaque_pct*100).toFixed(2),"s-outras":s.outras_un.toFixed(2),"s-frete":s.frete.toFixed(2),"s-ext":s.extras.toFixed(2),"s-cup":s.cupom.toFixed(2),"s-tacos":(s.tacos30*100).toFixed(2)})}
 function anUsarMedias(){
   var m=AN.A.margem||{},u=m.unid||0,r=m.receita||0;if(!(u>0&&r>0)){alert("Sem vendas com escrow no período para calcular médias.");return}

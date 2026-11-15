@@ -30,6 +30,7 @@ def _tabelas(c):
     c.execute("CREATE TABLE IF NOT EXISTS ads_camp(campaign_id INT PRIMARY KEY, item_id INT, nome TEXT, status TEXT, tipo TEXT, local TEXT, orcamento REAL, roas_alvo REAL, inicio INT, fim INT)")
     c.execute("CREATE TABLE IF NOT EXISTS ads_dia(campaign_id INT, dia TEXT, imp INT, cliques INT, gasto REAL, gmv REAL, pedidos INT, gmv_dir REAL, ped_dir INT, PRIMARY KEY(campaign_id,dia))")
     c.execute("CREATE TABLE IF NOT EXISTS mapa(id INTEGER PRIMARY KEY AUTOINCREMENT, item_id INT, ts INT, autor TEXT, texto TEXT, dados TEXT, fav INT DEFAULT 0)")
+    c.execute("CREATE TABLE IF NOT EXISTS config(chave TEXT PRIMARY KEY, valor TEXT)")
     c.execute("CREATE TABLE IF NOT EXISTS posicao(item_id INT PRIMARY KEY, pagina INT, posicao INT, keyword TEXT, ts INT)")
 
 
@@ -368,6 +369,194 @@ def _custos_reais(c, peds, item_id, base, aliq, preco_atual):
             "outras_un": 0.0, "regras": [], "frete": 0.0, "extras": 0.0, "cupom": 0.0, "cmv": None, "sku": "", "imposto_pct": aliq}
 
 
+REGRAS_CAMPANHA = (1000069, 1000091)        # taxa de campanha (Destaque): 3,5% até 27/10/2026 e 5% desde 28/10/2026
+
+
+def taxa_campanha(e):
+    """% de taxa de campanha cobrada no pedido (None se o pedido não pagou)."""
+    rl = _f(e.get("order_selling_price"))
+    if rl <= 0:
+        return None
+    v = sum(_f(r.get("fee_amount")) for r in e.get("net_service_fee_info_list") or [] if r.get("rule_id") in REGRAS_CAMPANHA)
+    return v / rl if v > 0 else None
+
+
+def _arredonda(x):
+    return round(x * 200) / 200            # 0,5 p.p.: 3,5% e 5,0% sem ruído de centavos
+
+
+def destaque_loja():
+    """Linha do tempo da taxa de campanha da loja, pelos pedidos: [{de, ate, pct, pedidos, com_taxa}] (a Shopee não informa a inscrição)."""
+    def montar():
+        c = _db()
+        dias = {}
+        for (j, criado) in c.execute("SELECT e.dados,p.criado FROM escrow e JOIN pedidos p ON p.order_sn=e.order_sn WHERE p.status NOT IN ('CANCELLED','IN_CANCEL','UNPAID')"):
+            e = json.loads(j)
+            if _f(e.get("seller_return_refund")) < 0 or _f(e.get("order_selling_price")) <= 0:
+                continue
+            d = dias.setdefault(painel._dia(criado), {"n": 0, "com": 0, "pcts": []})
+            d["n"] += 1
+            t = taxa_campanha(e)
+            if t:
+                d["com"] += 1
+                d["pcts"].append(_arredonda(t))
+        c.close()
+        seg = []
+        for dia in sorted(dias):
+            d = dias[dia]
+            if d["n"] < 1:
+                continue
+            pct = max(set(d["pcts"]), key=d["pcts"].count) if d["com"] / d["n"] >= 0.5 else 0.0
+            if seg and seg[-1]["pct"] == pct:
+                seg[-1]["ate"] = dia
+                seg[-1]["pedidos"] += d["n"]
+                seg[-1]["com_taxa"] += d["com"]
+            else:
+                seg.append({"de": dia, "ate": dia, "pct": pct, "pedidos": d["n"], "com_taxa": d["com"]})
+        return seg
+    return painel._vivo("destaque_loja", montar, 600)
+
+
+def destaque_item(c, peds, item_id, hist):
+    """Situação da taxa de campanha para o anúncio: ativa se a maioria dos pedidos dos últimos 7 dias pagou a taxa."""
+    corte = int(time.time()) - 7 * DIA
+    tot = com = 0
+    ult_com = ult_sem = None
+    taxas = []
+    for p in sorted(peds, key=lambda x: -x["criado"]):
+        if p["status"] in FINAL_FORA:
+            continue
+        r = c.execute("SELECT dados FROM escrow WHERE order_sn=?", (p["order_sn"],)).fetchone()
+        if not r:
+            continue
+        e = json.loads(r[0])
+        if _f(e.get("seller_return_refund")) < 0 or _f(e.get("order_selling_price")) <= 0:
+            continue
+        t = taxa_campanha(e)
+        if t and ult_com is None:
+            ult_com = painel._dia(p["criado"])
+        if not t and ult_sem is None:
+            ult_sem = painel._dia(p["criado"])
+        if p["criado"] >= corte:
+            tot += 1
+            if t:
+                com += 1
+                taxas.append(_arredonda(t))
+    atual = hist[-1] if hist else None
+    if tot:
+        ativa = com / tot >= 0.5
+        base = "pedidos do anúncio nos últimos 7 dias"
+    else:                                     # sem venda recente do anúncio: vale o que a loja está pagando
+        ativa = bool(atual and atual["pct"] > 0)
+        base = "pedidos da loja (o anúncio não vendeu nos últimos 7 dias)"
+    taxa = max(set(taxas), key=taxas.count) if taxas else (atual["pct"] if atual else 0.0)
+    desde = None
+    for sgm in reversed(hist):
+        if sgm["pct"] == (atual["pct"] if atual else 0):
+            desde = sgm["de"]
+        else:
+            break
+    return {"ativa": ativa, "taxa": taxa if ativa else 0.0, "desde": desde, "pedidos_7d": tot, "com_taxa_7d": com, "base": base,
+            "ultimo_pedido_com_taxa": ult_com, "ultimo_pedido_sem_taxa": ult_sem,
+            "historico": [x for x in hist if x["pct"] > 0 or True], "inferido": True}
+
+
+# ─── validador da comissão da última venda e desativação do Destaque ─────────
+
+def _config_get(c, chave):
+    r = c.execute("SELECT valor FROM config WHERE chave=?", (chave,)).fetchone()
+    return json.loads(r[0]) if r else None
+
+
+def registrar_desativacao(solicitada_em, efeito_previsto, obs=""):
+    """Guarda a solicitação de desativação da campanha Destaque feita no Seller Centre (a Shopee não informa isso por API)."""
+    c = _db()
+    c.execute("INSERT OR REPLACE INTO config VALUES('destaque_desativacao',?)", (json.dumps({"solicitada_em": solicitada_em, "efeito_previsto": efeito_previsto, "obs": obs}, ensure_ascii=False),))
+    c.commit()
+    c.close()
+
+
+def limpar_desativacao():
+    c = _db()
+    c.execute("DELETE FROM config WHERE chave='destaque_desativacao'")
+    c.commit()
+    c.close()
+
+
+def _ultima_venda(c, peds=None, item_id=None):
+    """Venda mais recente (da loja ou do anúncio) com escrow, já decomposta nas tarifas."""
+    if peds is None:
+        fonte = (json.loads(j) for (j,) in c.execute("SELECT dados FROM pedidos WHERE status NOT IN ('CANCELLED','IN_CANCEL','UNPAID','TO_RETURN','RETURNED') ORDER BY criado DESC LIMIT 300"))
+    else:
+        fonte = iter(sorted(peds, key=lambda x: -x["criado"]))
+    for p in fonte:
+        if p["status"] in FINAL_FORA:
+            continue
+        r = c.execute("SELECT dados FROM escrow WHERE order_sn=?", (p["order_sn"],)).fetchone()
+        if not r:
+            continue
+        e = json.loads(r[0])
+        if _f(e.get("seller_return_refund")) < 0:
+            continue
+        meus = [i for i in p["itens"] if item_id is None or i["item_id"] == item_id]
+        if not meus:
+            continue
+        tot_itens = sum(_f(i["preco"]) * _f(i["qtd"]) for i in p["itens"]) or 1
+        qtd = sum(_f(i["qtd"]) for i in meus)
+        rec = sum(_f(i["preco"]) * _f(i["qtd"]) for i in meus)
+        part = rec / tot_itens
+        rl = (_f(e.get("order_selling_price")) - _f(e.get("voucher_from_seller"))) * part
+        if rl <= 0 or qtd <= 0:
+            continue
+        t = decompor_tarifas(e, part, qtd, rl)
+        return {"order_sn": p["order_sn"], "dia": painel._dia(p["criado"]), "hora": datetime.fromtimestamp(p["criado"], painel.BRT).strftime("%H:%M"),
+                "pagamento": e.get("buyer_payment_method") or "n/d", "parcelas": e.get("instalment_plan"), "status": p["status"],
+                "preco_un": rl / qtd, "qtd": qtd, "itens_no_pedido": len(p["itens"]), "sku": (meus[0]["model_sku"] or meus[0]["item_sku"]),
+                "comissao_pct": t["comissao_pct"], "fixo": t["fixo"], "destaque_pct": t["destaque_pct"], "cobrou_destaque": t["destaque_pct"] > 0,
+                "outras_un": t["outras_un"], "regras": t["regras"], "criado": p["criado"]}
+    return None
+
+
+def validar_comissao(v):
+    """Compara a última venda com a tabela de comissão (precificador): comissão total, taxa fixa e taxa de campanha."""
+    if not v:
+        return None
+    pct_t, fixa_t = painel_precificador().faixa(v["preco_un"])
+    dif_pct = v["comissao_pct"] - pct_t
+    dif_fixo = v["fixo"] - fixa_t
+    itens = [
+        {"campo": "Comissão total", "esperado": f"{pct_t * 100:.1f}%".replace(".", ","), "cobrado": f"{v['comissao_pct'] * 100:.2f}%".replace(".", ","), "ok": abs(dif_pct) <= 0.003},
+        {"campo": "Taxa fixa por item", "esperado": f"R$ {fixa_t:.2f}".replace(".", ","), "cobrado": f"R$ {v['fixo']:.2f}".replace(".", ","), "ok": abs(dif_fixo) <= 0.2 or v["itens_no_pedido"] > 1},
+    ]
+    obs = []
+    if v["pagamento"] != "Pix":
+        obs.append("Pedido pago no cartão: a Shopee lista tarifas líquidas (comissão e serviço menores + taxa de cartão), mas o repasse usa as brutas. Prefira conferir com uma venda no Pix.")
+    if v["itens_no_pedido"] > 1:
+        obs.append("Pedido com mais de um item: taxa fixa não conferida.")
+    if v["outras_un"] > 0.05:
+        obs.append(f"Há taxas de serviço de regra desconhecida (R$ {v['outras_un']:.2f} por unidade).".replace(".", ","))
+    return {"itens": itens, "ok": all(i["ok"] for i in itens), "obs": obs}
+
+
+def painel_precificador():
+    from marketplaces.shopee import precificador
+    return precificador
+
+
+def estado_destaque(ult_loja, cfg, hoje):
+    """ativa | inativa | ativa_aguardando | cobrando_apos_previsto | desativada, pela última venda da loja e pela solicitação registrada."""
+    cobrou = bool(ult_loja and ult_loja["cobrou_destaque"])
+    if not cfg:
+        return "ativa" if cobrou else "inativa", None
+    prev = datetime.fromisoformat(cfg["efeito_previsto"]).date() if cfg.get("efeito_previsto") else None
+    sol = cfg.get("solicitada_em") or ""
+    if not cobrou and ult_loja and ult_loja["dia"] >= sol:
+        return "desativada", None
+    if cobrou and prev and hoje >= prev:
+        return "cobrando_apos_previsto", (hoje - prev).days
+    return "ativa_aguardando", ((prev - hoje).days if prev else None)
+
+
 # ─── avisos e PIVO ───────────────────────────────────────────────────────────
 
 def _pivo(cat, camp_ativas):
@@ -474,7 +663,14 @@ def anuncio(item_id: int, de: str = None, ate: str = None, loja: str = "techsell
             c.execute("SELECT id,ts,autor,texto,dados,fav FROM mapa WHERE item_id=? ORDER BY ts DESC LIMIT 100", (item_id,))]
     pos = c.execute("SELECT pagina,posicao,keyword,ts FROM posicao WHERE item_id=?", (item_id,)).fetchone()
     snaps = c.execute("SELECT MIN(dia),COUNT(*) FROM views_hist WHERE item_id=?", (item_id,)).fetchone()
+    dest = destaque_item(c, peds, item_id, destaque_loja())
+    ult_loja, ult_item = _ultima_venda(c), _ultima_venda(c, peds, item_id)
+    cfg_d = _config_get(c, "destaque_desativacao")
     c.close()
+    est, dias_est = estado_destaque(ult_loja, cfg_d, hoje)
+    dest.update({"estado": est, "dias_estado": dias_est, "desativacao": cfg_d, "ultima_loja": ult_loja, "ultima_item": ult_item,
+                 "validacao": validar_comissao(ult_item or ult_loja), "validacao_de": "anúncio" if ult_item else "loja",
+                 "ativa": est in ("ativa", "ativa_aguardando", "cobrando_apos_previsto")})
     promos_fim = [p.get("end_time") for p in cat.get("promocoes", []) if p.get("promotion_staging") == "ongoing"]
     v30 = P30["unidades"]
     full = None
@@ -487,7 +683,7 @@ def anuncio(item_id: int, de: str = None, ate: str = None, loja: str = "techsell
             "periodo": {"de": iso(de_d), "ate": iso(ate_d), "dias": n}, "A": A, "B": Bp, "P3": P3, "P4": P4, "p30": P30,
             "rot": {"A": [iso(de_d), iso(ate_d)], "B": [iso(B0), iso(B1)], "P3": [iso(C0), iso(C1)], "P4": [iso(D0), iso(D1_)]},
             "avisos": _avisos(cat, sbs, vel, P30, camps, promos_fim), "pivo": _pivo(cat, ativas), "sim": sim, "full": full,
-            "promocoes": cat.get("promocoes", []), "campanhas": camps, "mapa": mapa,
+            "promocoes": cat.get("promocoes", []), "campanhas": camps, "mapa": mapa, "destaque": dest,
             "posicao": {"pagina": pos[0], "posicao": pos[1], "keyword": pos[2], "ts": pos[3]} if pos else None,
             "visitas_desde": snaps[0], "retratos": snaps[1], "hoje": iso(hoje)}
 

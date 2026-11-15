@@ -62,5 +62,40 @@ class TestAnuncio(unittest.TestCase):
         self.assertEqual((v["cancelados"], v["pedidos"], v["unidades"], v["receita"]), (1, 1, 2, 20.0))
 
 
+class TestDestaque(unittest.TestCase):
+    def test_taxa_de_campanha_pelo_rule_id(self):
+        e = {"order_selling_price": 100, "net_service_fee_info_list": [{"rule_id": 1000091, "fee_amount": 5.0}, {"rule_id": 1000075, "fee_amount": 4.5}]}
+        self.assertAlmostEqual(anuncio.taxa_campanha(e), 0.05)
+        e["net_service_fee_info_list"] = [{"rule_id": 1000069, "fee_amount": 3.5}]
+        self.assertAlmostEqual(anuncio.taxa_campanha(e), 0.035)
+        self.assertIsNone(anuncio.taxa_campanha({"order_selling_price": 100, "net_service_fee_info_list": [{"rule_id": 1000075, "fee_amount": 4.5}]}))
+
+    def test_decomposicao_das_tarifas(self):
+        e = {"commission_fee": 14.05, "net_service_fee_info_list": [{"rule_id": 1000074, "fee_amount": 1.06}, {"rule_id": 1000075, "fee_amount": 4.5},
+                                                                    {"rule_id": 1000091, "fee_amount": 3.78}, {"rule_id": 999, "fee_amount": 1.0}]}
+        t = anuncio.decompor_tarifas(e, 1.0, 1, 75.55)
+        self.assertAlmostEqual(t["comissao_pct"], 0.20, places=3)       # 18,6% + 1,4%
+        self.assertAlmostEqual(t["fixo"], 4.5)
+        self.assertAlmostEqual(t["destaque_pct"], 0.05, places=3)
+        self.assertAlmostEqual(t["outras_un"], 1.0)                     # regra sem nome vai para "outras"
+
+    def test_validador_confere_e_diverge(self):
+        v = {"preco_un": 75.55, "comissao_pct": 0.20, "fixo": 4.5, "pagamento": "Pix", "itens_no_pedido": 1, "outras_un": 0}
+        self.assertTrue(anuncio.validar_comissao(v)["ok"])
+        r = anuncio.validar_comissao({**v, "comissao_pct": 0.17, "fixo": 4.0})
+        self.assertFalse(r["ok"])
+        self.assertTrue(anuncio.validar_comissao({**v, "pagamento": "Credit Card"})["obs"])
+        self.assertIsNone(anuncio.validar_comissao(None))
+
+    def test_estado_do_destaque_com_solicitacao_de_desativacao(self):
+        from datetime import date
+        cfg = {"solicitada_em": "2026-11-14", "efeito_previsto": "2026-12-01"}
+        self.assertEqual(anuncio.estado_destaque({"cobrou_destaque": True, "dia": "2026-11-20"}, cfg, date(2026, 11, 20)), ("ativa_aguardando", 11))
+        self.assertEqual(anuncio.estado_destaque({"cobrou_destaque": True, "dia": "2026-12-04"}, cfg, date(2026, 12, 5)), ("cobrando_apos_previsto", 4))
+        self.assertEqual(anuncio.estado_destaque({"cobrou_destaque": False, "dia": "2026-12-04"}, cfg, date(2026, 12, 5)), ("desativada", None))
+        self.assertEqual(anuncio.estado_destaque({"cobrou_destaque": True, "dia": "2026-11-20"}, None, date(2026, 11, 20)), ("ativa", None))
+        self.assertEqual(anuncio.estado_destaque({"cobrou_destaque": False, "dia": "2026-11-20"}, None, date(2026, 11, 20)), ("inativa", None))
+
+
 if __name__ == "__main__":
     unittest.main()

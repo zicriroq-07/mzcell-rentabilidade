@@ -197,3 +197,23 @@ def painel_posicao(item_id: int, corpo: _PosicaoIn):
     from marketplaces.shopee import anuncio as _an
     _an.salvar_posicao(item_id, corpo.pagina, corpo.posicao, corpo.keyword)
     return {"ok": True}
+
+
+class _DesativacaoIn(BaseModel):
+    solicitada_em: str
+    efeito_previsto: str
+    obs: str = ""
+
+
+@router.post("/painel/destaque/desativacao")
+def painel_destaque_desativacao(corpo: _DesativacaoIn):
+    from marketplaces.shopee import anuncio as _an
+    _an.registrar_desativacao(corpo.solicitada_em, corpo.efeito_previsto, corpo.obs)
+    return {"ok": True}
+
+
+@router.delete("/painel/destaque/desativacao")
+def painel_destaque_desativacao_limpar():
+    from marketplaces.shopee import anuncio as _an
+    _an.limpar_desativacao()
+    return {"ok": True}
