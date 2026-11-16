@@ -71,3 +71,29 @@ class TestEnvioFba(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestPreparo(unittest.TestCase):
+    def _fake(self, categorias):
+        chamadas = []
+        orig = (e.api.get, e.api.post)
+
+        def get(conta, caminho, **p):
+            return 200, {"mskuPrepDetails": [{"msku": k, "prepCategory": c} for k, c in categorias.items()]}
+
+        def post(conta, caminho, corpo):
+            chamadas.append(corpo)
+            return 200, {}
+        e.api.get, e.api.post = get, post
+        self.addCleanup(lambda: (setattr(e.api, "get", orig[0]), setattr(e.api, "post", orig[1])))
+        return chamadas
+
+    def test_grava_so_o_que_nao_tem_classificacao(self):
+        ch = self._fake({"A": "NONE", "B": "UNKNOWN"})
+        self.assertEqual(e.garantir_preparo("c", "M", ["A", "B", "C"], gravar=True), ["B", "C"])
+        self.assertEqual([d["msku"] for d in ch[0]["mskuPrepDetails"]], ["B", "C"])
+
+    def test_simulacao_nao_grava(self):
+        ch = self._fake({"B": "UNKNOWN"})
+        self.assertEqual(e.garantir_preparo("c", "M", ["B"], gravar=False), ["B"])
+        self.assertEqual(ch, [])

@@ -91,7 +91,7 @@ def corpo_plano(sku, total, origem, marketplace, nome) -> dict:
     `sku`/`total` podem ser listas de mesmo tamanho (caixa mista: vários SKUs no mesmo plano)."""
     skus, totais = ([sku], [total]) if isinstance(sku, str) else (list(sku), list(total))
     return {"destinationMarketplaces": [marketplace], "name": nome, "sourceAddress": origem["endereco"],
-            "items": [{"msku": k, "quantity": t, "labelOwner": "SELLER", "prepOwner": "NONE"} for k, t in zip(skus, totais)]}
+            "items": [{"msku": k, "quantity": t, "labelOwner": "SELLER", "prepOwner": _prep_owner(k)} for k, t in zip(skus, totais)]}
 
 
 def corpo_embalagem(grupo, sku, caixas, por_caixa, peso, dim) -> dict:
@@ -102,7 +102,7 @@ def corpo_embalagem(grupo, sku, caixas, por_caixa, peso, dim) -> dict:
         "contentInformationSource": "BOX_CONTENT_PROVIDED", "quantity": caixas,
         "dimensions": {"length": c, "width": l, "height": a, "unitOfMeasurement": "CM"},
         "weight": {"unit": "KG", "value": peso},
-        "items": [{"labelOwner": "SELLER", "msku": k, "quantity": q, "prepOwner": "NONE"} for k, q in zip(skus, qtds)]}]}]}
+        "items": [{"labelOwner": "SELLER", "msku": k, "quantity": q, "prepOwner": _prep_owner(k)} for k, q in zip(skus, qtds)]}]}]}
 
 
 def parse_caixa(texto: str) -> dict:
@@ -135,7 +135,7 @@ def corpo_embalagem_multi(grupo, specs: list) -> dict:
         caixas.append({"contentInformationSource": "BOX_CONTENT_PROVIDED", "quantity": sp["n"],
                        "dimensions": {"length": c, "width": l, "height": a, "unitOfMeasurement": "CM"},
                        "weight": {"unit": "KG", "value": sp["peso"]},
-                       "items": [{"labelOwner": "SELLER", "msku": k, "quantity": q, "prepOwner": "NONE"} for k, q in sp["itens"]]})
+                       "items": [{"labelOwner": "SELLER", "msku": k, "quantity": q, "prepOwner": _prep_owner(k)} for k, q in sp["itens"]]})
     return {"packageGroupings": [{"packingGroupId": grupo, "boxes": caixas}]}
 
 
@@ -269,6 +269,41 @@ def _parametros(a):
     return list(tot.keys()), list(tot.values()), specs
 
 
+PREP_OWNER = {}   # msku -> "SELLER" quando a Amazon marca prepOwnerConstraint SELLER_ONLY (padrão: "NONE")
+
+
+def _prep_owner(msku) -> str:
+    return PREP_OWNER.get(msku, "NONE")
+
+
+def _preparo_atual(conta, mkt, skus) -> dict:
+    """listPrepDetails (só leitura): categoria de preparo de cada SKU; ausente/UNKNOWN = sem classificação."""
+    s, r = api.get(conta, f"{BASE}/items/prepDetails", marketplaceId=mkt, mskus=",".join(skus))
+    _ok(s, r, "listPrepDetails")
+    cat = {}
+    for d in r.get("mskuPrepDetails", []):
+        cat[d.get("msku")] = d.get("prepCategory") or "UNKNOWN"
+        if d.get("prepOwnerConstraint") == "SELLER_ONLY":
+            PREP_OWNER[d.get("msku")] = "SELLER"
+    return {k: cat.get(k, "UNKNOWN") for k in skus}
+
+
+def garantir_preparo(conta, mkt, skus, gravar) -> list:
+    """Primeiro envio de um SKU: a Amazon recusa o plano se ele não tem categoria de preparo (FBA_INB_0182).
+    Grava "sem preparo" (NONE / ITEM_NO_PREP) só nos SKUs SEM classificação; nunca sobrescreve uma categoria existente.
+    Com gravar=False apenas informa quais seriam gravados."""
+    pend = [k for k, c in _preparo_atual(conta, mkt, skus).items() if c == "UNKNOWN"]
+    if pend and gravar:   # relê no fim para captar a restrição de prepOwner criada pela gravação
+        corpo = {"marketplaceId": mkt, "mskuPrepDetails": [
+            {"msku": k, "prepCategory": "NONE", "prepTypes": ["ITEM_NO_PREP"]} for k in pend]}
+        s, r = api.post(conta, f"{BASE}/items/prepDetails", corpo)
+        _ok(s, r, "setPrepDetails")
+        if isinstance(r, dict) and r.get("operationId"):
+            _op(conta, r, "setPrepDetails")
+        _preparo_atual(conta, mkt, skus)
+    return pend
+
+
 def cmd_simular(a):
     skus, totais, specs = _parametros(a)
     origem = ler_origem(a.conta)
@@ -281,6 +316,10 @@ def cmd_simular(a):
         dim = sp["dim"]
         print(f"  {sp['n']} caixa(s) · {sp['peso']} kg · {dim[0]:g}x{dim[1]:g}x{dim[2]:g} cm · " + " + ".join(f"{k} {q}" for k, q in sp["itens"]))
     print(f"  Total: {sum(sp['n'] for sp in specs)} caixas · {sum(totais)} unidades")
+    mkt = api.conta_cfg(a.conta).get("marketplace_id") or "A2Q3Y263D00KWC"
+    pend = garantir_preparo(a.conta, mkt, skus, gravar=False)
+    if pend:
+        print(f"  Preparo: {', '.join(pend)} sem classificação — o 'criar --confirmar' grava 'sem preparo' antes de criar o plano.")
     e = origem["endereco"]
     print(f"  Origem: {e.get('addressLine1')} {e.get('addressLine2', '')}, {e.get('city')} ({e.get('postalCode')})")
     print(f"  Primeiro dia útil possível para coleta: {proximo_dia_util(date.today()):%d/%m/%Y}")
@@ -297,6 +336,9 @@ def cmd_criar(a):
     mkt = cfg.get("marketplace_id") or "A2Q3Y263D00KWC"
     for k in skus:
         _sku_do_inventario(a.conta, k)
+    gravados = garantir_preparo(a.conta, mkt, skus, gravar=True)
+    if gravados:
+        print(f"Preparo gravado como 'sem preparo' (1º envio): {', '.join(gravados)}")
     nome = a.nome or nome_padrao(skus, totais)
     s, r = api.post(a.conta, f"{BASE}/inboundPlans", corpo_plano(skus, totais, origem, mkt, nome))
     _ok(s, r, "createInboundPlan"); plano = r["inboundPlanId"]
