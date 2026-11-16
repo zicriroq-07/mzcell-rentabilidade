@@ -586,3 +586,25 @@ def plano_full(meta: int = 20, loja: str = "techseller", so_com_envio: bool = Tr
     return {"meta_dias": meta, "vel_min": vel_min, "gerado_em": datetime.now(BRT).isoformat(timespec="seconds"), "itens": out,
             "totais": {"anuncios": len(out), "unidades": sum(r["enviar"] for r in out), "sem_estoque": sum(1 for r in out if r["falta_estoque"] > 0),
                        "criticos": sum(1 for r in out if r["prioridade"] == "critico"), "novos": sum(1 for r in out if r["prioridade"] == "novo")}}
+
+
+if __name__ == "__main__":
+    # Uso (agendador do Windows no servidor):  python -m marketplaces.shopee.painel sincronizar [dias]
+    import sys
+    if len(sys.argv) >= 2 and sys.argv[1] == "sincronizar":
+        dias = int(sys.argv[2]) if len(sys.argv) > 2 else 30
+        if not sincronizar(dias):
+            print("Já há uma sincronização em andamento.")
+            sys.exit(1)
+        ultimo = ""
+        while _estado["rodando"]:
+            time.sleep(5)
+            atual = f"{_estado['fase']} {_estado['feito']}/{_estado['total']}"
+            if atual != ultimo:
+                print(time.strftime("%H:%M:%S"), atual, flush=True)
+                ultimo = atual
+        print("Concluído." if not _estado["erro"] or _estado["erro"].startswith("Parcial") else "Erro: " + _estado["erro"])
+        if _estado["erro"]:
+            print(_estado["erro"])
+        sys.exit(0 if _estado["fase"] == "concluído" else 2)
+    print("Uso: python -m marketplaces.shopee.painel sincronizar [dias]")
