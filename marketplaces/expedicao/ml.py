@@ -25,7 +25,7 @@ DIAS_BUSCA = 6
 PAGINAS = 40          # 50 pedidos por página: até 2000 no período (com 20 perdia os mais antigos, ex.: 1422 pedidos em 6 dias)
 CONTAS = ["meli01", "meli02", "meli03"]
 _cache = {}
-CACHE_SEG = 90
+CACHE_SEG = 30
 # Envios que nunca mais voltam a ser "abertos" (já saíram, foram entregues/cancelados ou não são Flex/Coleta/Agência):
 # não precisam ser consultados de novo a cada atualização (era o que deixava a busca em ~3 minutos).
 TERMINAIS = ("shipped", "delivered", "cancelled", "not_delivered")

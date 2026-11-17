@@ -19,7 +19,7 @@ SITUACAO_VERIFICADO = 24
 SITUACOES = {6: "Em aberto", 9: "Atendido", 12: "Cancelado", 15: "Em andamento", 21: "Em digitação",
              24: "Verificado", 753338: "Pagamento aprovado", 753339: "Em devolução"}
 _cache = {}
-CACHE_SEG = 60
+CACHE_SEG = 30
 
 
 def _pedidos(conta_bling: str) -> dict:
