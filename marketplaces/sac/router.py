@@ -42,11 +42,6 @@ def devolucoes_todas(dias: int = 15, atualizar: bool = False):
     return _resposta(None, dias, atualizar)
 
 
-@router.get("/{conta}/devolucoes")
-def devolucoes_conta(conta: str, dias: int = 15, atualizar: bool = False):
-    if conta not in devolucoes.CONTAS:
-        raise HTTPException(status_code=404, detail="conta inválida")
-    return _resposta(conta, dias, atualizar)
 
 
 PAGINA = os.path.join(os.path.dirname(os.path.abspath(__file__)), "pagina.html")
@@ -142,3 +137,11 @@ def meli_resumo(conta: str):
     if conta not in meli.CONTAS:
         raise HTTPException(status_code=404, detail="conta inválida")
     return _seguro(meli.resumo, conta)
+
+
+# Rota genérica por conta do ML: fica por último para não capturar /sac/shopee/devolucoes nem /sac/amazon/...
+@router.get("/{conta}/devolucoes")
+def devolucoes_conta(conta: str, dias: int = 15, atualizar: bool = False):
+    if conta not in devolucoes.CONTAS:
+        raise HTTPException(status_code=404, detail="conta inválida")
+    return _resposta(conta, dias, atualizar)

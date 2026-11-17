@@ -76,3 +76,15 @@ class SaudeAmazon(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class RotasNaOrdemCerta(unittest.TestCase):
+    def test_shopee_devolucoes_nao_cai_na_rota_do_ml(self):
+        from fastapi import FastAPI
+        from fastapi.testclient import TestClient
+        from marketplaces.sac import router as r
+        app = FastAPI()
+        app.include_router(r.router)
+        with mock.patch.object(shopee, "devolucoes", return_value={"itens": [], "resumo": {}}):
+            resp = TestClient(app).get("/sac/shopee/devolucoes")
+        self.assertEqual(resp.status_code, 200)
