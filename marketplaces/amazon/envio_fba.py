@@ -459,7 +459,13 @@ def cmd_agendar(a):
     origem = ler_origem(a.conta)
     s, r = api.post(a.conta, P + "/transportationOptions/confirmation", {"transportationSelections": [
         {"shipmentId": est["envio"], "transportationOptionId": escolhida["transportationOptionId"], "contactInformation": origem["contato"]}]})
-    _ok(s, r, "confirmTransportationOptions"); _op(a.conta, r, "confirmTransportationOptions")
+    _ok(s, r, "confirmTransportationOptions")
+    for p in _op(a.conta, r, "confirmTransportationOptions"):
+        print(f"  aviso da Amazon: {p.get('code')}: {p.get('message')}")
+        if p.get("code") == "FBA_INB_0208":
+            raise ErroEnvio("A Amazon NÃO aceitou o transporte: a transportadora parceira não atende entre a origem e o destino "
+                            f"deste envio (FBA_INB_0208). Nada foi agendado; sem transporte aceito a NF também é recusada. "
+                            f"Cancele com: cancelar {a.conta} --plano {a.plano} --confirmar")
     print(f"Coleta agendada para {d:%d/%m/%Y}. Envio {est.get('confirmacao')}. Falta imprimir e colar as etiquetas.")
 
 
@@ -541,12 +547,73 @@ def cmd_nf(a):
         raise ErroEnvio(f"A NF não foi emitida (status {atual.get('status')}).")
 
 
+# ─── Fluxo "manual": NF primeiro, depois o transporte (para destinos sem transportadora parceira) ──────────────
+
+def opcao_propria(opcoes: list):
+    """Transportadora própria (sem agenda da Amazon): 'Self' por pacote pequeno; senão 'Other'."""
+    proprias = [o for o in opcoes if o.get("shippingSolution") == "USE_YOUR_OWN_CARRIER" and o.get("shippingMode") == "GROUND_SMALL_PARCEL"]
+    return next((o for o in proprias if (o.get("carrier") or {}).get("alphaCode") == "SELF"), proprias[0] if proprias else None)
+
+
+def _confirmar_transporte(conta, est, opcao):
+    """confirmTransportationOptions; mostra os avisos da Amazon. Devolve True se não houve FBA_INB_0208."""
+    P = f"{BASE}/inboundPlans/{est['plano']}"
+    s, r = api.post(conta, P + "/transportationOptions/confirmation", {"transportationSelections": [
+        {"shipmentId": est["envio"], "transportationOptionId": opcao["transportationOptionId"], "contactInformation": ler_origem(conta)["contato"]}]})
+    _ok(s, r, "confirmTransportationOptions")
+    ok = True
+    for p in _op(conta, r, "confirmTransportationOptions"):
+        print(f"  aviso da Amazon: {p.get('code')}: {p.get('message')}")
+        ok = ok and p.get("code") != "FBA_INB_0208"
+    return ok
+
+
+def cmd_manual(a):
+    """Fluxo na ordem do processo manual: cria o plano (produto, quantidade, dimensões, embalagens) -> NF -> transporte.
+    --envio coleta (transportadora parceira, escolhe --data ou a mais cedo) ou proprio (você leva/contrata o frete)."""
+    from types import SimpleNamespace
+    skus, totais, specs = _parametros(a)
+    if not a.confirmar:
+        print("Faltou --confirmar. Mostrando só a simulação:\n")
+        return cmd_simular(a)
+    print(f"[1/3] Criando o plano em {a.conta}...")
+    est, opcoes, taxa = _criar(a, skus, totais, specs)
+    print(f"      plano {est['plano']} · envio {est['confirmacao']} · destino {est['destino']} · taxa R$ {taxa:.2f}")
+    nf = SimpleNamespace(conta=a.conta, plano=est["plano"], confirmar=True)
+    print("[2/3] NF de remessa (antes do transporte, como no processo manual)...")
+    nf_ok = True
+    try:
+        cmd_nf(nf)
+    except (ErroEnvio, api.ErroAmazon) as e:
+        nf_ok = False
+        print(f"      NF ainda não emitida: {api.mascarar(str(e))[:220]}")
+    print(f"[3/3] Transporte: {'transportadora própria' if a.envio == 'proprio' else 'coleta da transportadora parceira'}...")
+    if a.envio == "proprio":
+        opcao = opcao_propria(opcoes)
+        if not opcao:
+            raise ErroEnvio("A Amazon não ofereceu transportadora própria para este envio.")
+        print(f"      opção: {opcao['carrier'].get('name')} ({opcao.get('shippingMode')})")
+    else:
+        opcao = escolher_opcao(opcoes, date.fromisoformat(a.data) if a.data else None, mais_cedo=not a.data)
+        if not opcao:
+            raise ErroEnvio("Não há coleta com essa data entre as opções (dia útil, transportadora parceira).")
+        print(f"      coleta {inicio_coleta(opcao)[:10]} · {opcao['carrier'].get('name')}")
+    if not _confirmar_transporte(a.conta, est, opcao):
+        raise ErroEnvio(f"A Amazon NÃO aceitou o transporte (FBA_INB_0208). Plano {est['plano']} segue aberto; cancele com: "
+                        f"cancelar {a.conta} --plano {est['plano']} --confirmar")
+    print("      transporte confirmado.")
+    if not nf_ok:
+        print("Refazendo o pedido da NF agora que há transporte aceito...")
+        cmd_nf(nf)
+    print(f"Pronto: envio {est['confirmacao']}. Falta imprimir DANFE e etiquetas e entregar as caixas.")
+
+
 def main(argv=None):
     p = argparse.ArgumentParser(description="Envio FBA (simula por padrão; escreve só com --confirmar)")
     sub = p.add_subparsers(dest="cmd", required=True)
-    for nome, fn in (("simular", cmd_simular), ("criar", cmd_criar), ("agendar", cmd_agendar), ("cancelar", cmd_cancelar), ("status", cmd_status), ("nf", cmd_nf)):
+    for nome, fn in (("simular", cmd_simular), ("criar", cmd_criar), ("agendar", cmd_agendar), ("cancelar", cmd_cancelar), ("status", cmd_status), ("nf", cmd_nf), ("manual", cmd_manual)):
         s = sub.add_parser(nome); s.set_defaults(fn=fn); s.add_argument("conta")
-        if nome in ("simular", "criar"):
+        if nome in ("simular", "criar", "manual"):
             s.add_argument("--sku"); s.add_argument("--qtd", type=int)
             s.add_argument("--caixas", type=int); s.add_argument("--por-caixa", type=int, dest="por_caixa")
             s.add_argument("--caixa", action="append", help="caixa(s): N;CxLxA;PESO_KG;SKU=un,SKU2=un (repita para tipos diferentes)")
@@ -557,7 +624,9 @@ def main(argv=None):
             s.add_argument("--plano", required=True)
         if nome == "agendar":
             s.add_argument("--data"); s.add_argument("--mais-cedo", action="store_true", dest="mais_cedo")
-        if nome in ("criar", "agendar", "cancelar", "nf"):
+        if nome == "manual":
+            s.add_argument("--envio", choices=("coleta", "proprio"), default="coleta"); s.add_argument("--data")
+        if nome in ("criar", "agendar", "cancelar", "nf", "manual"):
             s.add_argument("--confirmar", action="store_true")
     a = p.parse_args(argv)
     a.__dict__.setdefault("confirmar", False)

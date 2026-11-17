@@ -114,3 +114,13 @@ class TestFullArvores(unittest.TestCase):
             return {"shippingSolution": "AMAZON_PARTNERED_CARRIER", "carrierAppointment": {"startTime": f"{dia}T12:00:00Z"}}
         opcoes = [op("2026-11-17"), op("2026-11-18"), op("2026-11-19"), op("2026-11-21")]   # 21/11 é sábado
         self.assertEqual(fa.datas_validas(opcoes, date(2026, 11, 16), 2), [date(2026, 11, 18), date(2026, 11, 19)])
+
+
+class TestOpcaoPropria(unittest.TestCase):
+    def test_prefere_self_pacote_pequeno(self):
+        ops = [{"shippingSolution": "AMAZON_PARTNERED_CARRIER", "shippingMode": "GROUND_SMALL_PARCEL", "transportationOptionId": "p"},
+               {"shippingSolution": "USE_YOUR_OWN_CARRIER", "shippingMode": "FREIGHT_LTL", "transportationOptionId": "l"},
+               {"shippingSolution": "USE_YOUR_OWN_CARRIER", "shippingMode": "GROUND_SMALL_PARCEL", "carrier": {"alphaCode": "TEXBR"}, "transportationOptionId": "t"},
+               {"shippingSolution": "USE_YOUR_OWN_CARRIER", "shippingMode": "GROUND_SMALL_PARCEL", "carrier": {"alphaCode": "SELF"}, "transportationOptionId": "s"}]
+        self.assertEqual(e.opcao_propria(ops)["transportationOptionId"], "s")
+        self.assertIsNone(e.opcao_propria(ops[:2]))
