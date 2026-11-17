@@ -15,7 +15,7 @@ import threading
 import time
 from datetime import datetime, timedelta, timezone
 
-from marketplaces.expedicao import amazon_dba, bling_checkout, ml, shopee_bling
+from marketplaces.expedicao import amazon_dba, bling_checkout, ml, shopee_api, shopee_bling
 
 BRT = timezone(timedelta(hours=-3))
 ATUALIZA_SEG = 30            # idade a partir da qual uma abertura da tela dispara nova leitura
@@ -53,12 +53,24 @@ def _shopee_liberada() -> bool:
         return False
 
 
+def _shopee_pela_api() -> bool:
+    """modulos_locais.json {"shopee_expedicao_api": true}: pedidos da Shopee lidos direto da API (sem Bling)."""
+    try:
+        from modulos_liberados import liberado
+        return liberado("shopee_expedicao_api")
+    except ImportError:
+        return False
+
+
 def montar() -> dict:
     """Leitura completa (lenta). Devolve {linhas, erros}."""
     res = ml.mapa(None, forcar=True)
     linhas, erros_bling = bling_checkout.enriquecer(res["linhas"])
     linhas_dba, erros_dba = amazon_dba.linhas()
-    linhas_shopee, erros_shopee = shopee_bling.linhas() if _shopee_liberada() else ([], {})
+    if _shopee_pela_api():
+        linhas_shopee, erros_shopee = shopee_api.linhas()
+    else:
+        linhas_shopee, erros_shopee = shopee_bling.linhas() if _shopee_liberada() else ([], {})
     erros = dict(res.get("erros", {}), **erros_dba, **erros_shopee)
     for c, e in (erros_bling or {}).items():
         erros.setdefault(f"bling:{c}", e)
