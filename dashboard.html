@@ -2309,6 +2309,8 @@ async function shpMostrarBling(d) {
   const r = shpBlingResumo(d.sku);
   box.innerHTML = r ? `<span class="mx-aviso bling-aviso" title="${sacEsc(r.tip)}">${sacEsc(r.txt)}</span>` : '<span class="mx-aviso bling-aviso" title="Consultando o Bling">Bling …</span>';
 }
+// Cards do modal que ficam desligados por enquanto (código mantido para reaproveitar): DRE do anúncio e Full (SBS)
+const SHP_CARD_DRE = false, SHP_CARD_FULL = false;
 const SHP_AV = {critico: 'shp-critico', atencao: 'shp-atencao', info: 'shp-info'};
 function shpDestaqueAviso(dz) {
   const est = dz.estado, dd = dz.desativacao || {}, ul = dz.ultima_loja, ulT = ul ? `${mxDmy(ul.dia)} ${ul.hora}` : '';
@@ -2398,7 +2400,7 @@ function shpDesenharModal(d) {
       </div>
       ${colSim}
     </div>
-    <div style="display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr);gap:14px;align-items:start;margin-top:14px">${dreCard}${fullCard}</div>
+    ${(SHP_CARD_DRE || SHP_CARD_FULL) ? `<div style="display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr);gap:14px;align-items:start;margin-top:14px">${SHP_CARD_DRE ? dreCard : ''}${SHP_CARD_FULL ? fullCard : ''}</div>` : ''}
     ${mapaHtml('Mapa de alterações')}`;
   _mapa = {conta: 'shopee', chave: String(it.item_id), snapshot: () => ({
     periodo: d.periodo, preco_medio: A.preco_c, margem_pct: mg.margem_pct, tacos: A.tacos, roas: A.roas, unidades: A.unidades, visitas: A.visitas, conversao: A.conv_c, receita: A.receita})};
