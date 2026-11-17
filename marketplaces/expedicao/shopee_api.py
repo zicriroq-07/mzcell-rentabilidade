@@ -53,16 +53,40 @@ def _detalhes(sid: int, sns: list) -> list:
     return out
 
 
-def _linha(o: dict, canal: str, hoje) -> dict:
+_bipes = {}          # order_sn -> epoch do bipe na coleta (não muda depois de feito): uma consulta por pedido
+
+
+def _bipe_em(sid: int, o: dict):
+    """Quando a transportadora bipou o pacote (PICKED_UP no rastreio). None se ainda não bipado ou se a Shopee não informar."""
+    sn = o["order_sn"]
+    if sn in _bipes:
+        return _bipes[sn]
+    quando = None
+    try:
+        pk = (o.get("package_list") or [{}])[0]
+        r = api.chamar("/api/v2/logistics/get_tracking_info", sid, {"order_sn": sn, "package_number": pk.get("package_number")}).get("response") or {}
+        ts = [e["update_time"] for e in r.get("tracking_info") or [] if e.get("logistics_status") == "PICKED_UP"]
+        quando = min(ts) if ts else None
+    except Exception:
+        return None                      # falha de rede: tenta de novo na próxima leitura
+    _bipes[sn] = quando or o.get("update_time")
+    return _bipes[sn]
+
+
+def _linha(o: dict, canal: str, hoje, bipe_ts=None, agora=None) -> dict:
     itens = [{"mlb": None, "sku": i.get("model_sku") or i.get("item_sku"), "titulo": i.get("item_name"), "qtd": i.get("model_quantity_purchased")}
              for i in o.get("item_list") or []]
     enviado = o.get("order_status") == "SHIPPED"
     ship_by = o.get("ship_by_date")
+    agora_ts = (agora or datetime.now(BRT)).timestamp()
+    # dois indicadores: checkout = nossas etapas (Bling Verificado ou marca do galpão); bipe = a coleta bipou o pacote
+    fora = bool(ship_by and ((bipe_ts and bipe_ts > ship_by) or (not enviado and agora_ts > ship_by)))
     return {"conta": "shopee", "canal": canal, "logistica": o.get("shipping_carrier"), "pedido": o["order_sn"], "pacote": None, "envio": o["order_sn"],
             "unidades": sum(int(i["qtd"] or 0) for i in itens), "status": "shopee", "substatus": o.get("order_status"),
             "situacao": {"READY_TO_SHIP": "Etiqueta a gerar", "PROCESSED": "Etiqueta gerada", "SHIPPED": "Com a transportadora"}.get(o.get("order_status"), o.get("order_status")),
             "meta": _meta(canal, hoje), "prazo_ml": datetime.fromtimestamp(ship_by, BRT).isoformat() if ship_by else None,
-            "itens": itens, "bling_numero": None, "bling_situacao": None, "bling_checkout": False, "checkout_auto": enviado}
+            "itens": itens, "bling_numero": None, "bling_situacao": None, "bling_checkout": False, "bipado": enviado,
+            "bipe_em": datetime.fromtimestamp(bipe_ts, BRT).isoformat() if bipe_ts else None, "bipe_fora_do_prazo": fora}
 
 
 def linhas(agora: datetime = None, loja: str = LOJA) -> tuple:
@@ -88,5 +112,5 @@ def linhas(agora: datetime = None, loja: str = LOJA) -> tuple:
             continue                                         # já entregue, em devolução ou cancelado: não é trabalho do galpão
         if o.get("order_status") == "SHIPPED" and datetime.fromtimestamp(o.get("update_time") or 0, BRT).date() != hoje:
             continue
-        saida.append(_linha(o, canal, hoje))
+        saida.append(_linha(o, canal, hoje, _bipe_em(sid, o) if o.get("order_status") == "SHIPPED" else None, agora))
     return saida, {}

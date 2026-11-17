@@ -35,7 +35,7 @@ def nome_canal(linha: dict) -> str:
 
 def postado(linha: dict) -> bool:
     """Já saiu do galpão (na agência, na lista de postagem ou coletado): a parte da Expedição terminou."""
-    return linha.get("status") == "ready_to_ship" and linha.get("substatus") in POSTADO
+    return bool(linha.get("bipado")) or (linha.get("status") == "ready_to_ship" and linha.get("substatus") in POSTADO)
 
 
 def estado(linha: dict, marcas: dict) -> tuple:
@@ -72,7 +72,8 @@ def _cartao(canal: str, linhas: list, marcas: dict, agora: datetime) -> dict:
                 atras += 1
     prox = min(pend_meta) if pend_meta else None
     return {"canal": canal, "pedidos": total, "unidades": unidades, "liberados": liberados, "embalados": emb,
-            "checkout": chk, "pendentes": total - chk, "atrasados": atras,
+            "checkout": chk, "bipados": sum(1 for l in linhas if postado(l)), "bipados_fora_prazo": sum(1 for l in linhas if l.get("bipe_fora_do_prazo") and postado(l)),
+            "pendentes": total - chk, "atrasados": atras,
             "percentual": round(100 * chk / total, 1) if total else 100.0,
             "proxima_meta": prox.isoformat() if prox else None,
             "minutos_ate_meta": round((prox - agora).total_seconds() / 60) if prox else None,
@@ -189,6 +190,10 @@ def _modulo(mid, nome, linhas, marcas, agora, dia, etapas=None, sem_dados=False,
             "sem_dados": sem_dados, "pedidos": None if sem_dados else n,
             "unidades": None if sem_dados else sum(l.get("unidades") or 0 for l in linhas),
             "prontos": None if sem_dados else prontos, "pendentes": None if sem_dados else n - prontos,
+            "bipados": None if sem_dados else sum(1 for l in linhas if postado(l)),
+            "nao_bipados": None if sem_dados else sum(1 for l in linhas if not postado(l)),
+            "bipados_fora_prazo": None if sem_dados else sum(1 for l in linhas if postado(l) and l.get("bipe_fora_do_prazo")),
+            "nao_bipados_atrasados": None if sem_dados else sum(1 for l in linhas if not postado(l) and l.get("bipe_fora_do_prazo")),
             "percentual": None if sem_dados else (round(100 * prontos / n, 1) if n else 100.0),
             "no_ponto": sum(1 for l in linhas if l.get("no_ponto")) if mid == "dba" else None,
             "atrasados": atrasados, "marcos": marcos, "principal": principal}

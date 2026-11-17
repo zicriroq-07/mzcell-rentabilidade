@@ -71,6 +71,9 @@ def montar() -> dict:
         linhas_shopee, erros_shopee = shopee_api.linhas()
     else:
         linhas_shopee, erros_shopee = shopee_bling.linhas() if _shopee_liberada() else ([], {})
+    if linhas_shopee and _shopee_pela_api():
+        linhas_shopee, erros_bling_shopee = bling_checkout.enriquecer(linhas_shopee)      # checkout (Verificado) vem do Bling, o bipe vem da Shopee
+        erros_bling = dict(erros_bling or {}, **{f"{k}": v for k, v in (erros_bling_shopee or {}).items()})
     erros = dict(res.get("erros", {}), **erros_dba, **erros_shopee)
     for c, e in (erros_bling or {}).items():
         erros.setdefault(f"bling:{c}", e)

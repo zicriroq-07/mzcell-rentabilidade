@@ -14,7 +14,7 @@ from datetime import datetime, timedelta
 from marketplaces.bling import api as bling
 from marketplaces.expedicao.ml import BRT, DIAS_BUSCA
 
-PARES = {"meli01": "bling01", "meli02": "bling02", "meli03": "bling03"}
+PARES = {"meli01": "bling01", "meli02": "bling02", "meli03": "bling03", "shopee": "bling01"}   # shopee: numeroLoja do Bling = número do pedido da Shopee
 SITUACAO_VERIFICADO = 24
 SITUACOES = {6: "Em aberto", 9: "Atendido", 12: "Cancelado", 15: "Em andamento", 21: "Em digitação",
              24: "Verificado", 753338: "Pagamento aprovado", 753339: "Em devolução"}
