@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="pt-BR"><head><meta charset="utf-8"><title>SAC — Shopee, Amazon e Mercado Livre</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+*{box-sizing:border-box}body{font:14px/1.4 system-ui,Segoe UI,Arial;margin:0;background:#f4f5f7;color:#1f2933}
+header{background:#374151;color:#fff;padding:12px 20px;display:flex;gap:14px;align-items:center;flex-wrap:wrap}
+header h1{font-size:18px;margin:0;flex:0 0 auto}.plat{display:flex;gap:6px;flex-wrap:wrap}
+.plat button,.abas button{font:inherit;border:0;border-radius:6px;padding:6px 12px;cursor:pointer;background:#4b5563;color:#fff}
+.plat button.on{background:#f97316}.abas{display:flex;gap:6px;margin:14px 0 10px;flex-wrap:wrap}.abas button{background:#e5e7eb;color:#1f2933}.abas button.on{background:#166534;color:#fff}
+main{max-width:1250px;margin:0 auto;padding:6px 16px 30px}.card{background:#fff;border-radius:8px;padding:14px 16px;margin-bottom:14px;box-shadow:0 1px 3px #0002}
+h2{font-size:15px;margin:0 0 10px}.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:12px}
+.tile{background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:10px 12px}.tile b{display:block;font-size:20px}.tile span{font-size:12px;color:#6b7280}
+.tile.ruim{border-color:#fca5a5;background:#fef2f2}.tile.am{border-color:#fcd34d;background:#fffbeb}.tile.ok{border-color:#86efac;background:#f0fdf4}
+table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:6px 8px;border-bottom:1px solid #e5e7eb;vertical-align:top}th{font-size:12px;color:#6b7280;position:sticky;top:0;background:#fff}
+td.n,th.n{text-align:right}.max{max-height:560px;overflow:auto}.nota{color:#6b7280;font-size:12px}.neg{color:#991b1b;font-weight:600}.am{color:#854d0e;font-weight:600}.ok{color:#166534}
+.pill{display:inline-block;padding:2px 8px;border-radius:10px;font-size:12px;background:#e5e7eb}.pill.responder,.pill.ruim,.pill.BAD{background:#fee2e2;color:#991b1b}.pill.chegou,.pill.FAIR{background:#fef3c7;color:#854d0e}
+.pill.GOOD,.pill.ok,.pill.GREAT{background:#dcfce7;color:#166534}.chips{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0}.chips button{font:inherit;border:1px solid #cbd2d9;background:#fff;border-radius:14px;padding:3px 10px;cursor:pointer}.chips button.on{background:#166534;color:#fff;border-color:#166534}
+.erro{background:#fee2e2;color:#991b1b;padding:8px 12px;border-radius:6px}.aviso{background:#fef3c7;color:#854d0e;padding:8px 12px;border-radius:6px}tr.cl{cursor:pointer}tr.cl:hover{background:#f3f4f6}
+.msg{padding:6px 10px;border-radius:8px;margin:4px 0;max-width:80%}.msg.c{background:#e5e7eb}.msg.l{background:#dcfce7;margin-left:auto}
+.ctl{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:8px}select,input{font:inherit;padding:4px 7px;border:1px solid #cbd2d9;border-radius:6px}
+</style></head><body>
+<header><h1>SAC</h1><div class="plat" id="plat"></div><span class="nota" style="color:#d1d5db">somente leitura: nada é respondido, aceito ou marcado como lido</span></header>
+<main><div class="abas" id="abas"></div><div id="corpo"></div></main>
+<script>
+var PLATS=[["shopee","Shopee",null],["amazon02","Amazon 02","amazon02"],["amazon01","Amazon 01","amazon01"],["meli01","Meli 01","meli01"],["meli02","Meli 02","meli02"],["meli03","Meli 03","meli03"]];
+var cur="shopee",aba="saude",filtro="";
+function esc(s){return String(s==null?"":s).replace(/[&<>"']/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]})}
+function n(v,d){return v==null||v===""?"—":Number(v).toLocaleString("pt-BR",{minimumFractionDigits:d||0,maximumFractionDigits:d||0})}
+function rs(v){return v==null?"—":"R$ "+n(v,2)}
+function pc(v,d){return v==null?"—":n(v*100,d==null?2:d)+"%"}
+function dmy(s){if(!s)return "—";var d=new Date(s);return isNaN(d)?esc(s):d.toLocaleDateString("pt-BR")}
+function dh(s){if(!s)return "—";var d=new Date(s);return isNaN(d)?esc(s):d.toLocaleDateString("pt-BR")+" "+d.toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})}
+function tile(t,v,cls,sub){return '<div class="tile '+(cls||"")+'"><b>'+v+'</b><span>'+t+(sub?" · "+sub:"")+'</span></div>'}
+function $(id){return document.getElementById(id)}
+function api(url){return fetch(url).then(function(r){return r.json().then(function(j){if(!r.ok)throw new Error(j.detail||r.status);return j})})}
+function abasDe(p){
+  if(p==="shopee")return [["saude","Saúde da conta"],["dev","Devoluções"],["msg","Mensagens"],["aval","Avaliações"]];
+  if(p.indexOf("amazon")===0)return [["saude","Saúde da conta"],["dev","Devoluções"],["msg","Mensagens"],["aval","Avaliações"]];
+  return [["resumo","Reputação e fila"],["dev","Devoluções"]];
+}
+function montarTopo(){
+  $("plat").innerHTML=PLATS.map(function(p){return '<button class="'+(p[0]===cur?"on":"")+'" onclick="trocar(\''+p[0]+'\')">'+p[1]+'</button>'}).join("");
+  $("abas").innerHTML=abasDe(cur).map(function(a){return '<button class="'+(a[0]===aba?"on":"")+'" onclick="irAba(\''+a[0]+'\')">'+a[1]+'</button>'}).join("");
+}
+function trocar(p){cur=p;aba=abasDe(p)[0][0];filtro="";montarTopo();carregar()}
+function irAba(a){aba=a;filtro="";montarTopo();carregar()}
+function carregando(m){$("corpo").innerHTML='<div class="card"><span class="nota">'+(m||"Carregando…")+'</span></div>'}
+function falha(e){$("corpo").innerHTML='<div class="card"><div class="erro">'+esc(e.message)+'</div></div>'}
+function carregar(){
+  var p=cur,a=aba;carregando(a==="dev"&&p==="shopee"?"Lendo devoluções da Shopee (a primeira leitura leva cerca de 1 minuto)…":(p.indexOf("amazon")===0?"Lendo relatórios da Amazon (30 a 90 segundos na primeira vez)…":"Carregando…"));
+  var rota;
+  if(p==="shopee")rota={saude:"/sac/shopee/saude",dev:"/sac/shopee/devolucoes?dias=30",msg:"/sac/shopee/mensagens?limite=40",aval:"/sac/shopee/avaliacoes?dias=30"}[a];
+  else if(p.indexOf("amazon")===0)rota={saude:"/sac/amazon/"+p+"/saude",dev:"/sac/amazon/"+p+"/devolucoes?dias=30",msg:"/sac/amazon/"+p+"/mensagens",aval:"/sac/amazon/"+p+"/avaliacoes?dias=90"}[a];
+  else rota={resumo:"/sac/meli/"+p+"/resumo",dev:"/sac/"+p+"/devolucoes?dias=15"}[a];
+  api(rota).then(function(d){if(p!==cur||a!==aba)return;DADOS=d;desenhar()}).catch(function(e){if(p===cur&&a===aba)falha(e)});
+}
+var DADOS=null;
+function desenhar(){
+  var d=DADOS,k=cur+"."+aba;
+  var f={"shopee.saude":shSaude,"shopee.dev":shDev,"shopee.msg":shMsg,"shopee.aval":shAval,"amazon.saude":azSaude,"amazon.dev":azDev,"amazon.msg":azMsg,"amazon.aval":azAval,"meli.resumo":mlResumo,"meli.dev":mlDev}[(cur==="shopee"?"shopee":cur.indexOf("amazon")===0?"amazon":"meli")+"."+aba];
+  $("corpo").innerHTML=f(d);
+  if(d&&d.carregando&&cur.indexOf("meli")===0&&aba==="dev")setTimeout(function(){if(aba==="dev"&&cur.indexOf("meli")===0)carregar()},6000);
+}
+function tabela(cab,linhas,vazio){
+  if(!linhas.length)return '<div class="nota">'+(vazio||"Nada para mostrar.")+'</div>';
+  return '<div class="max"><table><thead><tr>'+cab.map(function(c){return '<th class="'+(c[1]||"")+'">'+c[0]+'</th>'}).join("")+'</tr></thead><tbody>'+linhas.join("")+'</tbody></table></div>';
+}
+function metricaCls(st){return {ok:"ok",ruim:"ruim",sem_dado:""}[st]||""}
+// ───────── Shopee
+function shSaude(d){
+  var g=d.geral||{};var h='<div class="card"><h2>Saúde da conta Shopee <span class="nota">'+dh(d.gerado_em)+'</span></h2><div class="tiles">'+
+   tile("Nível geral (1 a 5)",esc(g.nivel),g.nivel>=4?"ok":"am")+tile("Pontos de penalidade",n(d.pontos_penalidade),d.pontos_penalidade?"ruim":"ok")+tile("Punições ativas",n(d.punicoes_ativas),d.punicoes_ativas?"ruim":"ok")+
+   tile("Pedidos atrasados",n(d.pedidos_atrasados),d.pedidos_atrasados?"ruim":"ok")+tile("Anúncios com problema",n(d.anuncios_com_problema.length),d.anuncios_com_problema.length?"am":"ok")+tile("Métricas fora da meta",n(d.fora_da_meta.length),d.fora_da_meta.length?"ruim":"ok")+'</div>';
+  h+=tabela([["Métrica"],["Atual","n"],["Meta","n"],["Período anterior","n"],["Situação"]],d.metricas.map(function(m){return '<tr><td>'+esc(m.titulo)+'</td><td class="n">'+n(m.atual,2)+'</td><td class="n">'+n(m.meta,2)+'</td><td class="n">'+n(m.anterior,2)+'</td><td><span class="pill '+metricaCls(m.estado)+'">'+({ok:"Dentro da meta",ruim:"Fora da meta",sem_dado:"Sem dado"})[m.estado]+'</span></td></tr>'}));
+  if(d.anuncios_com_problema.length)h+='<h2 style="margin-top:14px">Anúncios com problema</h2>'+tabela([["Item ID"],["Motivo (código)"]],d.anuncios_com_problema.map(function(a){return '<tr><td>'+esc(a.item_id)+'</td><td>'+esc(a.motivo)+'</td></tr>'}));
+  return h+'<div class="nota" style="margin-top:8px">Metas e períodos vêm da própria Shopee. A taxa de resposta (chat) depende de responder rápido às mensagens.</div></div>';
+}
+var FASES_SH={responder:"Responder (aguarda você)",disputa:"Disputa/análise",chegou:"Chegou ao vendedor",a_caminho:"A caminho",reembolso:"Reembolso em processamento",aceita:"Aceita",encerrada:"Encerrada"};
+function shDev(d){
+  var r=d.resumo,pf=r.por_fase||{};
+  var h='<div class="card"><h2>Devoluções da Shopee <span class="nota">últimos '+d.dias+' dias · '+dh(d.gerado_em)+'</span></h2><div class="tiles">'+tile("Responder agora",n(pf.responder||0),pf.responder?"ruim":"ok")+tile("Ainda contestáveis",n(r.contestaveis),r.contestaveis?"am":"ok",rs(r.valor_contestavel))+
+   tile("Chegaram ao vendedor",n(pf.chegou||0))+tile("A caminho",n(pf.a_caminho||0))+tile("Reembolso em processamento",n(pf.reembolso||0))+tile("Valor em aberto",rs(r.valor_em_aberto))+tile("Total no período",n(r.total))+'</div>';
+  h+='<div class="nota">Motivos (não encerradas): '+Object.keys(r.motivos).map(function(k){return esc(k)+' <b>'+r.motivos[k]+'</b>'}).join(" · ")+'</div>';
+  h+='<div class="chips"><button class="'+(filtro===""?"on":"")+'" onclick="filtrar(\'\')">Todas</button>'+Object.keys(FASES_SH).map(function(k){return pf[k]?'<button class="'+(filtro===k?"on":"")+'" onclick="filtrar(\''+k+'\')">'+FASES_SH[k]+' ('+pf[k]+')</button>':""}).join("")+'<button class="'+(filtro==="contestavel"?"on":"")+'" onclick="filtrar(\'contestavel\')">Só contestáveis</button></div>';
+  var L=d.itens.filter(function(i){return !filtro||(filtro==="contestavel"?i.contestavel:i.fase===filtro)});
+  h+=tabela([["Situação"],["Pedido"],["SKU / produto"],["Motivo"],["Valor","n"],["Criada"],["Prazo"],["O que fazer"]],L.map(function(i){return '<tr><td><span class="pill '+i.fase+'">'+esc(i.fase_texto)+'</span></td><td>'+esc(i.pedido)+'<div class="nota">'+esc(i.return_sn)+'</div></td><td><b>'+esc(i.item.sku||"—")+'</b><div class="nota">'+esc((i.item.nome||"").slice(0,60))+'</div></td><td>'+esc(i.motivo_texto)+(i.comentario?'<div class="nota">“'+esc(i.comentario.slice(0,90))+'”</div>':"")+'</td><td class="n">'+rs(i.valor)+'</td><td>'+dmy(i.criada)+'</td><td class="'+(i.prazo_vencido?"":"am")+'">'+dmy(i.prazo)+(i.prazo_vencido?'<div class="nota">vencido</div>':"")+'</td><td class="nota">'+esc(i.acao)+'</td></tr>'}),"Nenhuma devolução neste filtro.");
+  return h+'</div>';
+}
+function filtrar(f){filtro=f;desenhar()}
+function shMsg(d){
+  var h='<div class="card"><h2>Mensagens da Shopee (Seller Chat) <span class="nota">'+dh(d.gerado_em)+'</span></h2><div class="tiles">'+tile("Não lidas",n(d.nao_lidas_total),d.nao_lidas_total?"am":"ok")+tile("Aguardando sua resposta",n(d.aguardando_resposta),d.aguardando_resposta?"ruim":"ok")+tile("Conversas listadas",n(d.conversas.length))+'</div>';
+  h+=tabela([["Quando"],["Comprador"],["Última de"],["Mensagem"],["Não lidas","n"]],d.conversas.map(function(c,i){return '<tr class="cl" onclick="abrirConversa(\''+c.conversa+'\')"><td>'+dh(c.ultima_em)+'</td><td>'+esc(c.comprador)+'</td><td>'+(c.aguarda_resposta?'<span class="pill responder">comprador</span>':'<span class="pill">loja</span>')+'</td><td class="nota">'+esc(c.ultima_texto||("["+(c.ultima_tipo||"mensagem")+"]"))+'</td><td class="n">'+n(c.nao_lidas)+'</td></tr>'}));
+  return h+'<div id="conversa" style="margin-top:12px"></div><div class="nota">Abrir uma conversa só lê as mensagens; não marca como lida. Responda pelo Seller Centre.</div></div>';
+}
+function abrirConversa(id){
+  $("conversa").innerHTML='<span class="nota">Lendo conversa…</span>';
+  api("/sac/shopee/conversa/"+id).then(function(d){$("conversa").innerHTML='<h2>Conversa</h2>'+(d.mensagens.length?d.mensagens.map(function(m){return '<div class="msg '+(m.de==="loja"?"l":"c")+'"><div class="nota">'+(m.de==="loja"?"Loja":"Comprador")+' · '+dh(m.quando)+'</div>'+esc(m.texto||("["+(m.tipo||"mídia")+"]"))+'</div>'}).join(""):'<div class="nota">Sem mensagens.</div>')}).catch(function(e){$("conversa").innerHTML='<div class="erro">'+esc(e.message)+'</div>'});
+}
+function estrelas(n_){return "★".repeat(n_||0)+"☆".repeat(Math.max(0,5-(n_||0)))}
+function shAval(d){
+  var h='<div class="card"><h2>Avaliações da Shopee <span class="nota">últimos '+d.dias+' dias</span></h2><div class="tiles">'+tile("Média",d.media==null?"—":n(d.media,2),d.media<4.5?"am":"ok")+tile("Avaliações",n(d.total))+tile("Notas 1 a 3",n(d.ruins),d.ruins?"ruim":"ok")+Object.keys(d.por_estrela).map(function(k){return tile(k+" estrela(s)",n(d.por_estrela[k]))}).join("")+'</div>';
+  return h+tabela([["Estrelas"],["Comentário"],["Pedido"],["Quando"],["Resposta"]],d.itens.slice(0,200).map(function(i){return '<tr><td class="'+(i.estrelas<=3?"neg":"")+'">'+estrelas(i.estrelas)+'</td><td>'+esc(i.comentario||"—")+'</td><td>'+esc(i.pedido)+'</td><td>'+dmy(i.quando)+'</td><td>'+(i.respondida?"respondida":(i.pode_responder?'<span class="am">pode responder</span>':"—"))+'</td></tr>'}),"Sem avaliações.")+'</div>';
+}
+// ───────── Amazon
+function azSaude(d){
+  var cor={AT_RISK:"ruim",NORMAL:"ok",CRITICAL:"ruim"}[d.status_conta]||"am";
+  var h='<div class="card"><h2>Saúde da conta Amazon ('+esc(d.conta)+') <span class="nota">'+dh(d.gerado_em)+'</span></h2><div class="tiles">'+tile("Status da conta",esc(d.status_conta||"—"),cor)+tile("Account Health Rating",esc(d.ahr.status||"—"),"ok",n(d.ahr.pontos)+" pontos")+tile("Métricas ruins ou regulares",n(d.ruins.length),d.ruins.length?"ruim":"ok")+'</div>';
+  if(d.ruins.length)h+='<div class="aviso" style="margin-bottom:10px">Atenção: '+d.ruins.map(esc).join(" · ")+'</div>';
+  h+=tabela([["Métrica"],["Valor","n"],["Meta"],["Situação"]],d.metricas.map(function(m){var v=m.eh_taxa?pc(m.valor):n(m.valor);var det=m.orderCount!=null?' <span class="nota">('+n(m.lateShipmentCount!=null?m.lateShipmentCount:(m.cancellationCount!=null?m.cancellationCount:0))+' de '+n(m.orderCount)+' pedidos)</span>':"";return '<tr><td>'+esc(m.titulo)+'</td><td class="n">'+v+det+'</td><td>'+esc(m.condicao||"")+' '+(m.meta==null?"":(m.eh_taxa?pc(m.meta):n(m.meta)))+'</td><td><span class="pill '+esc(m.status)+'">'+esc(m.status)+'</span></td></tr>'}));
+  return h+'<div class="nota" style="margin-top:8px">Fonte: relatório de desempenho do vendedor (últimos 30 dias). GOOD = dentro da meta, FAIR = regular, BAD = fora da meta.</div></div>';
+}
+function azDev(d){
+  var r=d.resumo,e=Object.keys(d.erros||{});
+  var h='<div class="card"><h2>Devoluções da Amazon ('+esc(d.conta)+') <span class="nota">últimos '+d.dias+' dias</span></h2><div class="tiles">'+tile("Total",n(r.total))+tile("FBA",n(r.fba))+tile("MFN (você envia)",n(r.mfn))+tile("Reclamações A-to-z",n(r.a_to_z),r.a_to_z?"ruim":"ok")+tile("Avariadas/defeituosas",n(r.avariados),r.avariados?"am":"ok")+'</div>';
+  if(e.length)h+='<div class="erro" style="margin-bottom:8px">Falha em: '+e.map(function(k){return k+" ("+esc(d.erros[k])+")"}).join("; ")+'</div>';
+  h+='<div class="nota">Motivos: '+Object.keys(r.motivos).map(function(k){return esc(k)+' <b>'+r.motivos[k]+'</b>'}).join(" · ")+'</div>';
+  return h+tabela([["Data"],["Origem"],["Pedido"],["SKU / produto"],["Qtd","n"],["Motivo"],["Disposição / status"],["A-to-z"],["Resolução"]],d.itens.map(function(i){return '<tr><td>'+esc(i.data)+'</td><td><span class="pill">'+i.origem+'</span></td><td>'+esc(i.pedido)+'</td><td><b>'+esc(i.sku)+'</b><div class="nota">'+esc((i.produto||"").slice(0,55))+'</div></td><td class="n">'+n(i.qtd)+'</td><td>'+esc(i.motivo||"—")+(i.comentario?'<div class="nota">“'+esc(i.comentario.slice(0,80))+'”</div>':"")+'</td><td>'+esc(i.status||"—")+'</td><td>'+(i.a_to_z?'<span class="neg">sim</span>':"—")+'</td><td>'+esc(i.resolucao||"—")+'</td></tr>'}),"Nenhuma devolução no período.")+'</div>';
+}
+function azMsg(d){return '<div class="card"><h2>Mensagens da Amazon ('+esc(d.conta)+')</h2><div class="aviso">'+esc(d.motivo)+'</div></div>'}
+function azAval(d){
+  var h='<div class="card"><h2>Avaliações do vendedor — Amazon ('+esc(d.conta)+') <span class="nota">últimos '+d.dias+' dias</span></h2><div class="tiles">'+tile("Média",d.media==null?"—":n(d.media,2),d.media&&d.media<4?"ruim":"ok")+tile("Avaliações",n(d.total))+tile("Notas 1 a 3",n(d.ruins),d.ruins?"ruim":"ok")+'</div>';
+  return h+tabela([["Estrelas"],["Comentário"],["Pedido"],["Data"],["Sua resposta"]],d.itens.map(function(i){return '<tr><td class="'+(i.estrelas<=3?"neg":"")+'">'+estrelas(i.estrelas)+'</td><td>'+esc(i.comentario||"—")+'</td><td>'+esc(i.pedido)+'</td><td>'+esc(i.data)+'</td><td>'+esc(i.resposta||"—")+'</td></tr>'}),"Sem avaliações no período.")+'<div class="nota" style="margin-top:6px">O e-mail do avaliador não é exibido.</div></div>';
+}
+// ───────── Meli
+function mlResumo(d){
+  var e=d.erros||{},er=Object.keys(e);var h='<div class="card"><h2>Mercado Livre — '+esc(d.conta)+' <span class="nota">'+dh(d.gerado_em)+'</span></h2>';
+  if(er.length)h+='<div class="erro" style="margin-bottom:8px">'+er.map(function(k){return esc(k)+": "+esc(e[k])}).join(" · ")+' (token do ML vencido? repasse o access_token)</div>';
+  var r=d.reputacao,q=d.perguntas,m=d.mensagens,c=d.reclamacoes;
+  h+='<div class="tiles">'+(r?tile("Reputação",esc(r.nivel_texto),/Verde/.test(r.nivel_texto)?"ok":"am",r.mercado_lider?"MercadoLíder "+esc(r.mercado_lider):""):"")+(q?tile("Perguntas sem resposta",n(q.sem_resposta),q.sem_resposta?"am":"ok"):"")+(m?tile("Mensagens não lidas",n(m.mensagens_nao_lidas),m.mensagens_nao_lidas?"am":"ok",n(m.conversas_nao_lidas)+" conversas"):"")+(c?tile("Reclamações abertas",n(c.abertas),c.aguardam_voce?"ruim":"ok",n(c.aguardam_voce)+" aguardam você"):"")+'</div>';
+  if(r)h+='<h2>Métricas de reputação <span class="nota">'+esc((r.metricas[0]||{}).periodo||"")+'</span></h2>'+tabela([["Métrica"],["Taxa","n"],["Quantidade","n"]],r.metricas.filter(function(x){return x.nome!=="sales"}).map(function(x){return '<tr><td>'+esc(x.titulo)+'</td><td class="n">'+pc(x.taxa)+'</td><td class="n">'+n(x.valor)+'</td></tr>'}));
+  if(c)h+='<div class="nota" style="margin-top:8px">Reclamações por tipo: '+Object.keys(c.por_tipo).map(function(k){return esc(k)+" <b>"+c.por_tipo[k]+"</b>"}).join(" · ")+'</div>';
+  if(q&&q.itens.length)h+='<h2 style="margin-top:12px">Perguntas sem resposta</h2>'+tabela([["Quando"],["Anúncio"],["Pergunta"]],q.itens.map(function(x){return '<tr><td>'+dh(x.quando)+'</td><td>'+esc(x.item_id)+'</td><td>'+esc(x.texto)+'</td></tr>'}));
+  return h+'</div>';
+}
+function mlDev(d){
+  if(d.carregando)return '<div class="card"><span class="nota">Carregando devoluções do ML (primeira leitura)…</span></div>';
+  var r=d.resumo||{};var h='<div class="card"><h2>Devoluções em andamento — Mercado Livre <span class="nota">'+dh(d.gerado_em)+'</span></h2><div class="tiles">'+tile("Total",n((d.itens||[]).length))+tile("Aguardam você",n((d.itens||[]).filter(function(i){return i.aguarda_voce}).length),"ruim")+'</div>';
+  if(d.erros&&Object.keys(d.erros).length)h+='<div class="erro" style="margin-bottom:8px">'+Object.keys(d.erros).map(function(k){return esc(k)+": "+esc(d.erros[k])}).join(" · ")+'</div>';
+  return h+tabela([["Fase"],["Pedido"],["Tipo"],["Data"],["Rastreio"],["O que fazer"]],(d.itens||[]).map(function(i){return '<tr><td><span class="pill '+(i.aguarda_voce?"responder":"")+'">'+esc(i.fase_texto)+'</span></td><td>'+esc(i.pedido)+'</td><td>'+esc(i.tipo)+'</td><td>'+dmy(i.data)+'</td><td>'+esc((i.devolucao||{}).rastreio||"—")+'</td><td class="nota">'+esc(i.acao)+'</td></tr>'}),"Nenhuma devolução em andamento.")+'</div>';
+}
+montarTopo();carregar();
+</script></body></html>
