@@ -8,6 +8,9 @@ GET    /montagem/tv/dados                  TV: só andamento e responsáveis
 GET    /montagem/produtividade?dia=        gestão: marcas e tempos por pessoa e duração de cada Full (log do dia)
 POST   /montagem/pdf                       lê o PDF do Full do Meli e devolve a prévia (não grava)
                                            (Amazon e Shopee entram à mão: canal + número + produtos)
+GET    /montagem/historico?canal=&sku=&de=&ate=&removidos=   banco dos agendamentos de Full: envios com SKU e unidades (nunca apaga)
+GET    /montagem/historico/{chave}/eventos   criado, coleta alterada, status, itens alterados, removido
+GET    /montagem/programado?canal=&dias_apos_coleta=   por canal e SKU: unidades agendadas ou a caminho (base da previsão e das compras)
 POST   /montagem/envios                    cria o envio com conta, coleta, prazo e responsáveis
 POST   /montagem/envios/{frete}/produtos/{i}/marcar     {tag: T|EG|E|OK, por, papel: estoquista|lider}
 DELETE /montagem/envios/{frete}/produtos/{i}/marcar/{tag}
@@ -81,6 +84,26 @@ def tv():
 def tv_full():
     """Versão antiga, só com as montagens do Full."""
     return _pagina("tv.html")
+
+
+@router.get("/historico")
+def historico_lista(canal: str = None, sku: str = None, de: str = None, ate: str = None, removidos: int = 0):
+    from marketplaces.montagem import historico
+    historico.carregar_do_arquivo()      # reconcilia com o arquivo de trabalho (primeira carga e envios antigos)
+    return {"resumo": historico.resumo(), "envios": historico.listar(canal, sku, de, ate, bool(removidos))}
+
+
+@router.get("/historico/{chave}/eventos")
+def historico_eventos(chave: str):
+    from marketplaces.montagem import historico
+    return {"chave": chave, "eventos": historico.eventos(chave)}
+
+
+@router.get("/programado")
+def programado(canal: str = None, dias_apos_coleta: int = 10):
+    from marketplaces.montagem import historico
+    historico.carregar_do_arquivo()
+    return {"dias_apos_coleta": dias_apos_coleta, "itens": historico.programado(canal, dias_apos_coleta=max(0, min(dias_apos_coleta, 60)))}
 
 
 @router.get("/dados")

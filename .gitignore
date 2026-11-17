@@ -169,3 +169,6 @@ sonda_shopee_extra.json
 full_arvores_estado.json
 full_arvores_config.json
 full_arvores_agenda.log
+full_agendamentos.db
+full_agendamentos.db-wal
+full_agendamentos.db-shm

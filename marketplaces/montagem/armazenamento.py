@@ -59,6 +59,11 @@ def _gravar(dados: dict):
     with open(tmp, "w", encoding="utf-8") as f:
         json.dump(dados, f, ensure_ascii=False, indent=1)
     os.replace(tmp, CAMINHO)
+    try:                                  # banco de agendamentos (SKU e unidades por envio); nunca derruba a gravação do galpão
+        from marketplaces.montagem import historico
+        historico.sincronizar(dados)
+    except Exception:
+        pass
 
 
 def status(envio: dict) -> str:
