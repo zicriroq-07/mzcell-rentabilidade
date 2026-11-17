@@ -2107,16 +2107,25 @@ function shpPeriodo(dias, btn) {
   document.querySelectorAll('#painel-shopee .modal-preset').forEach(b => b.classList.remove('active'));
   btn.classList.add('active'); SHP.dias = dias; shpCarregar();
 }
+async function shpBuscarDados(vivo) {
+  const r = await fetch(`${API}/shopee/painel/dados?dias=${SHP.dias}&vivo=${vivo}`);
+  const d = await r.json(); if (!r.ok) throw new Error(d.detail || r.status);
+  return d;
+}
 async function shpCarregar() {
-  const st = document.getElementById('shps'); st.textContent = 'carregando…';
+  const st = document.getElementById('shps'), dias = SHP.dias; st.textContent = 'carregando…';
   try {
-    const r = await fetch(`${API}/shopee/painel/dados?dias=${SHP.dias}&vivo=0`);
-    const d = await r.json(); if (!r.ok) throw new Error(d.detail || r.status);
+    let d = await shpBuscarDados(0);   // vendas e margem (rápido); depois a consulta ao vivo traz o Ads por anúncio (1 a 2 minutos na primeira vez)
+    if (dias !== SHP.dias) return;
     SHP.dados = d; SHP.itens = shpAgrupar(d);
     try { SHP.pos = (await (await fetch(`${API}/posicoes/shopee`)).json()).posicoes || {}; } catch (e) {}
     shpDesenhar();
-    st.textContent = `dados de ${(d.gerado_em || '').replace('T', ' ')}${d.sync?.rodando ? ' · atualizando…' : ''}`;
+    st.textContent = 'buscando Ads na Shopee… (1 a 2 minutos na primeira vez)';
     if (d.sync?.rodando) shpAcompanhar();
+    d = await shpBuscarDados(1);
+    if (dias !== SHP.dias) return;
+    SHP.dados = d; SHP.itens = shpAgrupar(d); shpDesenhar();
+    st.textContent = `dados de ${(d.gerado_em || '').replace('T', ' ')}${d.sync?.rodando ? ' · atualizando…' : ''}`;
   } catch (e) { st.textContent = 'erro: ' + e.message; }
 }
 // vendas.skus vem por SKU (variação); o anúncio é o item_id: soma os SKUs do mesmo anúncio
@@ -2177,7 +2186,7 @@ function shpTabela() {
     const mc = a.margem_pct == null ? 'var(--muted2)' : (a.margem_pct < 0 ? 'var(--red)' : a.margem_pct < 10 ? 'var(--gold)' : 'var(--green)');
     const sku = a.skus.filter(Boolean).slice(0, 2).join(', ') + (a.skus.length > 2 ? ` +${a.skus.length - 2}` : '');
     return `<tr onclick="shpAbrir('${a.item_id}')">
-      <td><div style="display:flex;gap:10px;align-items:center"><img data-shp-foto="${a.item_id}" alt="" style="display:none;width:44px;height:44px;object-fit:contain;border-radius:6px;flex:none"/><div><div style="font-weight:600;line-height:1.3">${sacEsc((a.nome || '').slice(0, 70))}</div><div class="modal-sku">${sacEsc(sku)} · ${a.item_id}</div><span data-tagtable="${a.item_id}">${renderTagsLinha('shopee', a.item_id)}</span></div></div></td>
+      <td><div style="display:flex;gap:10px;align-items:center"><img data-shp-foto="${a.item_id}" alt="" onerror="this.style.display='none'" style="display:none;width:44px;height:44px;object-fit:contain;border-radius:6px;flex:none"/><div><div style="font-weight:600;line-height:1.3">${sacEsc((a.nome || '').slice(0, 70))}</div><div class="modal-sku">${sacEsc(sku)} · ${a.item_id}</div><span data-tagtable="${a.item_id}">${renderTagsLinha('shopee', a.item_id)}</span></div></div></td>
       <td>${brl2(a.receita)}</td><td>${r(a.unid)}</td><td>${brl2(a.ads)}</td><td>${a.tacos != null ? pct1(a.tacos) : '—'}</td>
       <td style="color:${mc}">${a.sem_cmv ? '<span class="pos-badge none">sem CMV</span> ' : ''}${brl2(a.margem_pos_ads)}</td>
       <td style="color:${mc}">${a.margem_pct != null ? shpPc(a.margem_pct) : '—'}</td><td>${shpPosBadge(a.item_id)}</td></tr>`;
