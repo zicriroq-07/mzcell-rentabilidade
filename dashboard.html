@@ -2083,6 +2083,7 @@ const shpFr = v => (v == null || isNaN(v)) ? '—' : shpN(v * 100, 2) + '%';   /
 function shopeeAbrirAba() {
   const box = document.getElementById('painel-shopee');
   tagsCarregar('shopee');
+  blingCarregar('shopee').then(() => { if (SHP.itens.length) shpTabela(); });
   if (!box.dataset.pronto) {
     box.dataset.pronto = '1';
     box.innerHTML = `
@@ -2166,6 +2167,10 @@ function shpDesenhar() {
 }
 function shpChip(k, btn) { _shpFiltro.chip = k; btn.parentElement.querySelectorAll('[data-chip]').forEach(b => b.classList.toggle('active', b === btn)); shpTabela(); }
 function shpBuscar(t) { _shpFiltro.busca = t; shpTabela(); }
+function shpBlingTag(skus) {
+  const r = shpBlingResumo(skus.join(','));
+  return r ? ` <span class="bling-tag" title="${sacEsc(r.tip)}">${sacEsc(r.txt)}</span>` : '';
+}
 function shpPosBadge(id) {
   const p = SHP.pos[String(id)];
   return p && p.posicao ? `<span class="pos-badge">p${p.pagina || 1} #${p.posicao}</span>` : '<span class="pos-badge none">sem registro</span>';
@@ -2186,7 +2191,7 @@ function shpTabela() {
     const mc = a.margem_pct == null ? 'var(--muted2)' : (a.margem_pct < 0 ? 'var(--red)' : a.margem_pct < 10 ? 'var(--gold)' : 'var(--green)');
     const sku = a.skus.filter(Boolean).slice(0, 2).join(', ') + (a.skus.length > 2 ? ` +${a.skus.length - 2}` : '');
     return `<tr onclick="shpAbrir('${a.item_id}')">
-      <td><div style="display:flex;gap:10px;align-items:center"><img data-shp-foto="${a.item_id}" alt="" onerror="this.style.display='none'" style="display:none;width:44px;height:44px;object-fit:contain;border-radius:6px;flex:none"/><div><div style="font-weight:600;line-height:1.3">${sacEsc((a.nome || '').slice(0, 70))}</div><div class="modal-sku">${sacEsc(sku)} · ${a.item_id}</div><span data-tagtable="${a.item_id}">${renderTagsLinha('shopee', a.item_id)}</span></div></div></td>
+      <td><div style="display:flex;gap:10px;align-items:center"><img data-shp-foto="${a.item_id}" alt="" onerror="this.style.display='none'" style="display:none;width:44px;height:44px;object-fit:contain;border-radius:6px;flex:none"/><div><div style="font-weight:600;line-height:1.3">${sacEsc((a.nome || '').slice(0, 70))}</div><div class="modal-sku">${sacEsc(sku)} · ${a.item_id}</div><span data-tagtable="${a.item_id}">${renderTagsLinha('shopee', a.item_id)}</span>${shpBlingTag(a.skus)}</div></div></td>
       <td>${brl2(a.receita)}</td><td>${r(a.unid)}</td><td>${brl2(a.ads)}</td><td>${a.tacos != null ? pct1(a.tacos) : '—'}</td>
       <td style="color:${mc}">${a.sem_cmv ? '<span class="pos-badge none">sem CMV</span> ' : ''}${brl2(a.margem_pos_ads)}</td>
       <td style="color:${mc}">${a.margem_pct != null ? shpPc(a.margem_pct) : '—'}</td><td>${shpPosBadge(a.item_id)}</td></tr>`;
@@ -2281,6 +2286,29 @@ async function shpModalBuscar() {
     _shp.d = d; shpDesenharModal(d);
   } catch (e) { document.getElementById('shp-body').innerHTML = `<div class="sac-mut">Erro: ${sacEsc(e.message)}</div>`; }
 }
+// Estoque do Bling do anúncio (Techseller = bling01 para a Shopee); o tooltip traz o saldo dos outros Blings para o mesmo SKU (mesma regra do Meli e da Amazon)
+function shpBlingResumo(skus) {
+  const d = _blingEst.shopee; if (!d) return null;
+  if (d.erros && d.erros[d.principal]) return {txt: 'Bling ?', tip: 'Bling indisponível: ' + d.erros[d.principal]};
+  const lista = [...new Set(String(skus || '').split(',').map(x => x.trim()).filter(x => x && x.toLowerCase() !== 'sem sku'))];
+  if (!lista.length) return {txt: 'Bling —', tip: 'Anúncio sem SKU: não dá para consultar o Bling'};
+  const achados = lista.map(x => ({sku: x, b: blingInfo('shopee', x)})).filter(x => x.b);
+  const com = achados.filter(x => x.b.it);
+  if (!com.length) {
+    const pai = achados.find(x => x.b.pai);
+    return pai ? {txt: 'Bling — SKU pai', tip: pai.b.tip} : {txt: 'Bling —', tip: 'SKU sem cadastro no Bling: ' + lista.join(', ')};
+  }
+  const total = com.reduce((t, x) => t + (x.b.it[0] ?? 0), 0), multi = lista.length > 1;
+  const NL = String.fromCharCode(10);
+  return {txt: `Bling ${fmtUn(total)} un`, tip: (multi ? 'Soma dos SKUs do anúncio:' + NL : '') + com.map(x => (multi ? `[${x.sku}]` + NL : '') + x.b.tip).join(NL)};
+}
+async function shpMostrarBling(d) {
+  const box = document.getElementById('shp-aviso-bling'); if (!box) return;
+  if (!_blingEst.shopee) await blingCarregar('shopee');
+  if (!_shp || _shp.id !== String(d.item.item_id)) return;       // o modal mudou de anúncio
+  const r = shpBlingResumo(d.sku);
+  box.innerHTML = r ? `<span class="mx-aviso bling-aviso" title="${sacEsc(r.tip)}">${sacEsc(r.txt)}</span>` : '<span class="mx-aviso bling-aviso" title="Consultando o Bling">Bling …</span>';
+}
 const SHP_AV = {critico: 'shp-critico', atencao: 'shp-atencao', info: 'shp-info'};
 function shpDestaqueAviso(dz) {
   const est = dz.estado, dd = dz.desativacao || {}, ul = dz.ultima_loja, ulT = ul ? `${mxDmy(ul.dia)} ${ul.hora}` : '';
@@ -2312,7 +2340,8 @@ function shpDesenharModal(d) {
   const pv = d.pivo;
   const letras = pv.grupos.map(g => `<span class="pivo-l lg ${g.ok ? 'on-' + g.id : ''}" title="${sacEsc(g.nome + '\n' + g.partes.map(p => (p.ok ? '[ok] ' : '[falta] ') + p.nome + ': ' + p.detalhe).join('\n'))}">${g.id}</span>`).join('');
   const pivoH = `<span class="mx-pivo" title="${sacEsc(pv.passa ? 'Passa no PIVO' : 'Atenção:\n' + pv.atencao.join('\n'))}"><span class="t">PIVO</span>${letras}<span class="n ${pv.passa ? 'ok' : 'atencao'}">${pv.passa ? 'completo' : 'atenção · ' + pv.pontos + '/' + pv.total}</span></span>`;
-  document.getElementById('shp-avisos').innerHTML = fullH + shpDestaqueAviso(dz) + avs + pivoH;
+  document.getElementById('shp-avisos').innerHTML = fullH + '<span id="shp-aviso-bling"></span>' + shpDestaqueAviso(dz) + avs + pivoH;
+  shpMostrarBling(d);
   // faixa fixa de 30 dias
   const orgs = Math.max(0, p30.unidades - p30.vads), roasObj = sim.roas_objetivo;
   const K = [['Vendas por ADS', r(p30.vads)], ['Vendas orgânicas', r(orgs)], ['Receita por ADS', brl2(p30.receita_publi)], ['Investimento', brl2(p30.ads_total)],
