@@ -2246,12 +2246,11 @@ async function shpPosCarregar(id) {
   let pos = {};
   try { pos = ((await (await fetch(`${API}/posicoes/shopee`)).json()).posicoes || {})[id] || {}; } catch (e) {}
   if (!_shp || _shp.id !== id) return;
-  box.innerHTML = `<span>Posição do anúncio: <b id="shppos-txt" style="color:var(--text)">${pos.posicao ? `p${pos.pagina || 1} #${pos.posicao}` : 'Sem registro'}</b></span>
+  box.innerHTML = `<span title="A Shopee não tem API de posição de busca: o registro é manual">Posição do anúncio: <b id="shppos-txt" style="color:var(--text)">${pos.posicao ? `p${pos.pagina || 1} #${pos.posicao}` : 'Sem registro'}</b></span>
     <input type="number" id="shppos-pag" value="${pos.pagina || 1}" min="1" max="99999" style="width:72px" title="Página"/>
     <input type="number" id="shppos-num" value="${pos.posicao || ''}" min="1" max="999999" style="width:84px" placeholder="Posição" title="Posição"/>
     <input type="text" id="shppos-kw" value="${sacEsc(pos.keyword || '')}" placeholder="Palavra-chave" style="flex:1;min-width:0"/>
-    <button class="btn-sm" onclick="salvarPosicao(_shp.id,'shopee','shppos');SHP.pos[_shp.id]={pagina:+document.getElementById('shppos-pag').value||1,posicao:+document.getElementById('shppos-num').value||0}">Salvar</button>
-    <div class="sac-mut" style="font-size:11px;width:100%">A Shopee não tem API de posição de busca: o registro é manual.</div>`;
+    <button class="btn-sm" onclick="salvarPosicao(_shp.id,'shopee','shppos');SHP.pos[_shp.id]={pagina:+document.getElementById('shppos-pag').value||1,posicao:+document.getElementById('shppos-num').value||0}">Salvar</button>`;
 }
 function shpIso(d) { return d.toISOString().split('T')[0]; }
 function shpModalPeriodo(dias, btn) {
@@ -2366,10 +2365,10 @@ function shpDesenharModal(d) {
           <div class="sac-mut" style="font-size:11px;margin-top:6px">${campH}</div></section>
         <section class="mx-card2"><h4>Dados de vendas</h4>${mxTabela(VCOLS, A, B, rot('A'), rot('B'), null, [{o: d.P3, rot: rot('P3')}, {o: d.P4, rot: rot('P4')}])}
           <div class="sac-mut" style="font-size:11px;margin-top:6px">${visNota}</div><div class="sac-mut" style="font-size:11px;margin-top:6px">${mgLinha}</div></section>
-        ${dreCard}${fullCard}
       </div>
       ${colSim}
     </div>
+    <div style="display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr);gap:14px;align-items:start;margin-top:14px">${dreCard}${fullCard}</div>
     ${mapaHtml('Mapa de alterações')}`;
   _mapa = {conta: 'shopee', chave: String(it.item_id), snapshot: () => ({
     periodo: d.periodo, preco_medio: A.preco_c, margem_pct: mg.margem_pct, tacos: A.tacos, roas: A.roas, unidades: A.unidades, visitas: A.visitas, conversao: A.conv_c, receita: A.receita})};
