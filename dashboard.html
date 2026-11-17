@@ -878,7 +878,7 @@ html[data-tema="claro"] .btn-anotacao:hover{background:var(--brand);color:#fff;}
       </div>
       <div class="tab" id="tab-amazon01"><div id="repo-amazon01"></div><div id="painel-amazon01"></div></div>
       <div class="tab" id="tab-amazon02"><div id="repo-amazon02"></div><div id="painel-amazon02"></div></div>
-      <div class="tab" id="tab-shopee"><div id="painel-shopee"></div></div>
+      <div class="tab" id="tab-shopee"><iframe id="frame-shopee" class="tab-frame" title="Shopee"></iframe></div>
       <div class="tab" id="tab-magalu"><div class="periodo-card" style="margin:24px"><span class="periodo-label">Magalu</span><span class="sac-mut">Em construção</span></div></div>
       <div class="tab" id="tab-cmv">
         <div class="periodo-card" style="flex-wrap:wrap">
@@ -1408,7 +1408,7 @@ function switchTab(tab, btn) {
   if(tab==='usuarios') usrCarregar();
   if(tab==='produtividade') prodAbrir();
   if(tab==='amazon01'||tab==='amazon02') amzAbrirAba(tab);
-  if(tab==='shopee') shopeeAbrirAba();
+  if(tab==='shopee'){ const f=document.getElementById('frame-shopee'); if(!f.getAttribute('src')) f.setAttribute('src',`${API}/shopee/painel`); }
   if(tab==='expedicao'){ const f=document.getElementById('frame-expedicao'); if(!f.getAttribute('src')) f.setAttribute('src',`${API}/expedicao`); }
   if(tab==='sac' && !window._sacIniciado){ window._sacIniciado=true; sacIr('geral'); }
 }
