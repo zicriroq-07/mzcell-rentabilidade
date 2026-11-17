@@ -65,6 +65,15 @@ def proximo_dia_util(a_partir_de: date) -> date:
     return d
 
 
+def data_minima_coleta(hoje: date, dias_uteis: int = 2) -> date:
+    """Primeira data de coleta com pelo menos `dias_uteis` dias úteis de folga depois de `hoje`
+    (hoje = dia do agendamento). Ex.: segunda 16/11 com 2 -> quarta 18/11."""
+    d = hoje
+    for _ in range(dias_uteis):
+        d = proximo_dia_util(d)
+    return d
+
+
 def parse_dim(texto: str) -> tuple:
     """'53x33x33' → (comprimento, largura, altura) em cm."""
     try:
@@ -331,6 +340,27 @@ def cmd_criar(a):
     if not a.confirmar:
         print("Faltou --confirmar. Mostrando só a simulação:\n")
         return cmd_simular(a)
+    estado, opcoes, taxa = _criar(a, skus, totais, specs)
+    print(f"Destino: {estado['destino']} · taxa de alocação R$ {taxa:.2f} · envio {estado['confirmacao']}")
+    print("Coletas disponíveis (transportadora parceira, dias úteis):")
+    for d, o in coletas_parceiras(opcoes):
+        custo = ((o.get("quote") or {}).get("cost") or {}).get("amount")
+        print(f"  {d:%d/%m/%Y} ({['seg','ter','qua','qui','sex','sáb','dom'][d.weekday()]}) · {o['carrier'].get('name')} · R$ {custo}")
+    print(f"\nNADA FOI AGENDADO. Para agendar: agendar {a.conta} --plano {estado['plano']} --mais-cedo --confirmar  (ou --data AAAA-MM-DD)")
+
+
+def coletas_parceiras(opcoes: list) -> list:
+    """[(data, opção)] só da transportadora parceira da Amazon, em dia útil, em ordem de data."""
+    out = []
+    for o in sorted((o for o in opcoes if inicio_coleta(o)), key=inicio_coleta):
+        d = date.fromisoformat(inicio_coleta(o)[:10])
+        if o.get("shippingSolution") == "AMAZON_PARTNERED_CARRIER" and dia_util(d):
+            out.append((d, o))
+    return out
+
+
+def _criar(a, skus, totais, specs, salvar=True):
+    """Cria o plano até as opções de coleta (não agenda). Devolve (estado, opções de transporte, taxa)."""
     origem = ler_origem(a.conta)
     cfg = api.conta_cfg(a.conta)
     mkt = cfg.get("marketplace_id") or "A2Q3Y263D00KWC"
@@ -379,15 +409,9 @@ def cmd_criar(a):
     opcoes = _opcoes_transporte(a.conta, plano, pl["placementOptionId"], envio)
     estado = {"conta": a.conta, "plano": plano, "placement": pl["placementOptionId"], "envio": envio,
               "confirmacao": r_get(a.conta, P, envio), "sku": " + ".join(skus), "total": sum(totais), "destino": destino}
-    _salvar_estado(estado)
-    print(f"Destino: {destino} · taxa de alocação R$ {taxa:.2f} · envio {estado['confirmacao']}")
-    print("Coletas disponíveis (transportadora parceira, dias úteis):")
-    for o in sorted((o for o in opcoes if inicio_coleta(o)), key=inicio_coleta):
-        d = date.fromisoformat(inicio_coleta(o)[:10])
-        if o.get("shippingSolution") == "AMAZON_PARTNERED_CARRIER" and dia_util(d):
-            custo = ((o.get("quote") or {}).get("cost") or {}).get("amount")
-            print(f"  {d:%d/%m/%Y} ({['seg','ter','qua','qui','sex','sáb','dom'][d.weekday()]}) · {o['carrier'].get('name')} · R$ {custo}")
-    print(f"\nNADA FOI AGENDADO. Para agendar: agendar {a.conta} --plano {plano} --mais-cedo --confirmar  (ou --data AAAA-MM-DD)")
+    if salvar:
+        _salvar_estado(estado)
+    return estado, opcoes, taxa
 
 
 def r_get(conta, P, envio):

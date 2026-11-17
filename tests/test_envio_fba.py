@@ -97,3 +97,20 @@ class TestPreparo(unittest.TestCase):
         ch = self._fake({"B": "UNKNOWN"})
         self.assertEqual(e.garantir_preparo("c", "M", ["B"], gravar=False), ["B"])
         self.assertEqual(ch, [])
+
+
+class TestDataMinimaColeta(unittest.TestCase):
+    def test_dois_dias_uteis(self):
+        self.assertEqual(e.data_minima_coleta(date(2026, 11, 16)), date(2026, 11, 18))   # seg -> qua
+        self.assertEqual(e.data_minima_coleta(date(2026, 11, 19)), date(2026, 11, 24))   # qui -> ter (20/11 é feriado, fim de semana pulado)
+        self.assertEqual(e.data_minima_coleta(date(2026, 11, 13)), date(2026, 11, 17))   # sex -> ter
+
+
+class TestFullArvores(unittest.TestCase):
+    def test_datas_validas_exige_folga_de_2_dias_uteis(self):
+        import full_arvores_agenda as fa
+
+        def op(dia):
+            return {"shippingSolution": "AMAZON_PARTNERED_CARRIER", "carrierAppointment": {"startTime": f"{dia}T12:00:00Z"}}
+        opcoes = [op("2026-11-17"), op("2026-11-18"), op("2026-11-19"), op("2026-11-21")]   # 21/11 é sábado
+        self.assertEqual(fa.datas_validas(opcoes, date(2026, 11, 16), 2), [date(2026, 11, 18), date(2026, 11, 19)])
