@@ -23,6 +23,9 @@ LIMITE_PIVO_SEG = 1800
 LIMITE_AMAZON_SEG = 2700
 CONTAS_ML = ("meli01", "meli02", "meli03")
 CONTAS_AMAZON = ("amazon01", "amazon02")
+LOJAS_SHOPEE = ("techseller",)
+DIAS_SHOPEE = 30          # mínimo de vendas e Ads no cache; a janela de 120 dias do Full fica guardada de cargas anteriores
+LIMITE_SHOPEE_SEG = 2700
 REBOT_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "rebot_cache.json")
 ESTADO_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "carga_estado.json")
 BRT = timezone(timedelta(hours=-3))
@@ -93,6 +96,16 @@ async def _amazon(conta: str):
         raise RuntimeError(erro)
 
 
+async def _shopee(loja: str):
+    """Pedidos, escrow, visualizações e Ads de todas as campanhas da loja (somente leitura). Resultado parcial conta como erro."""
+    from marketplaces.shopee import painel
+    await asyncio.to_thread(painel.sincronizar, DIAS_SHOPEE, loja)       # se já houver uma rodando, só espera por ela
+    await _esperar(lambda: painel.estado().get("rodando"), LIMITE_SHOPEE_SEG)
+    erro = painel.estado().get("erro")
+    if erro:
+        raise RuntimeError(erro)
+
+
 async def _esperar(rodando, limite_seg: int):
     """Espera a tarefa de fundo acabar. Passou do limite: segue para a próxima conta, sem insistir."""
     for _ in range(limite_seg // ESPERA_SEG):
@@ -103,8 +116,9 @@ async def _esperar(rodando, limite_seg: int):
 
 
 async def rodar_extras(log) -> dict:
-    """PIVO, rebot e Amazon, em sequência. Devolve {etapa: 'ok' ou o erro} e registra cada uma no log de atividades."""
-    etapas = [("pivo", c, _pivo) for c in CONTAS_ML] + [("rebot", c, _rebot) for c in CONTAS_ML] + [("amazon", c, _amazon) for c in CONTAS_AMAZON]
+    """PIVO, rebot, Amazon e Shopee, em sequência. Devolve {etapa: 'ok' ou o erro} e registra cada uma no log de atividades."""
+    etapas = ([("pivo", c, _pivo) for c in CONTAS_ML] + [("rebot", c, _rebot) for c in CONTAS_ML] + [("amazon", c, _amazon) for c in CONTAS_AMAZON]
+              + [("shopee", l, _shopee) for l in LOJAS_SHOPEE])
     resultado = {}
     for nome, conta, func in etapas:
         chave = f"{nome} {conta}"

@@ -2742,7 +2742,7 @@ const _autoSyncFeito = {};
 // Com erro: aviso de dados possivelmente desatualizados e uma carga completa no servidor, que vale para todos.
 // App instalado (sem a carga): _carga.ativo é falso e tudo segue como antes. Expedição e SAC são em tempo real.
 let _carga = null;
-const CARGA_BOTOES = c => [`btn-sync-${c}`, `btn-pivo-${c}`, `amzb-${c}`];
+const CARGA_BOTOES = c => [`btn-sync-${c}`, `btn-pivo-${c}`, `amzb-${c}`, ...(c === 'shopee' ? ['shpb'] : [])];
 async function cargaCarregar() {
   try { const r = await fetch(`${API}/carga/estado`); _carga = r.ok ? await r.json() : null; } catch (e) { _carga = null; }
   cargaAplicar();
@@ -2753,7 +2753,7 @@ function cargaAplicar() {
   const ativo = !!(_carga && _carga.ativo), travar = ativo && (_carga.em_dia || _carga.rodando);
   const u = _carga?.ultima;
   const dica = !ativo ? '' : _carga.rodando ? 'Carga do servidor em andamento' : `Dados carregados pelo servidor em ${cargaHora(u?.fim)}: atualização manual desligada`;
-  ['meli01', 'meli02', 'meli03', 'amazon01', 'amazon02'].forEach(c => CARGA_BOTOES(c).forEach(id => {
+  ['meli01', 'meli02', 'meli03', 'amazon01', 'amazon02', 'shopee'].forEach(c => CARGA_BOTOES(c).forEach(id => {
     const b = document.getElementById(id); if (!b) return;
     if (b.dataset.titulo === undefined) b.dataset.titulo = b.title || '';
     b.disabled = travar; b.title = travar ? dica : b.dataset.titulo;

@@ -208,6 +208,60 @@ def fotos(item_ids, loja="techseller"):
     return saida
 
 
+def cobertura(dias=30, loja="techseller"):
+    """Confere (sem rede) se o cache tem pelo menos `dias` de vendas e de Ads para TODOS os anúncios: lista o que falta.
+    Vendas: pedidos por dia e escrow dos pedidos válidos. Ads: um registro por dia desde o início da campanha até o último dia fechado."""
+    c = _db()
+    fim = _hoje() - timedelta(days=1)
+    ini = fim - timedelta(days=dias - 1)
+    i0, i1 = ini.isoformat(), fim.isoformat()
+    desde = int(time.mktime((ini - timedelta(days=1)).timetuple()))
+    por_dia, itens, validos_sn = {}, {}, []
+    for (j,) in c.execute("SELECT dados FROM pedidos WHERE criado>=?", (desde,)):
+        p = json.loads(j)
+        dia = painel._dia(p["criado"])
+        if not (i0 <= dia <= i1):
+            continue
+        por_dia[dia] = por_dia.get(dia, 0) + 1
+        ok = p["status"] not in FINAL_FORA
+        if ok:
+            validos_sn.append(p["order_sn"])
+        for it in p["itens"]:
+            x = itens.setdefault(it["item_id"], {"pedidos": 0, "unidades": 0.0})
+            x["pedidos"] += 1
+            if ok:
+                x["unidades"] += _f(it["qtd"])
+    dias_lista = [(ini + timedelta(days=k)).isoformat() for k in range(dias)]
+    sem_pedido = [d for d in dias_lista if d not in por_dia]
+    cache = c.execute("SELECT MIN(criado), MAX(criado) FROM pedidos").fetchone()
+    escrow = {r[0] for r in c.execute("SELECT order_sn FROM escrow")}
+    sem_escrow = [sn for sn in validos_sn if sn not in escrow]
+    camps = c.execute("SELECT campaign_id, item_id, inicio, fim FROM ads_camp").fetchall()
+    tem = {}
+    for cid, d in c.execute("SELECT campaign_id, COUNT(DISTINCT dia) FROM ads_dia WHERE dia>=? AND dia<=? GROUP BY campaign_id", (i0, i1)):
+        tem[cid] = d
+    ultimo = c.execute("SELECT MAX(dia) FROM ads_dia").fetchone()[0]
+    lacunas, com_ads = [], set()
+    for cid, item, a_ini, a_fim in camps:
+        com_ads.add(item)
+        d_ini = max(ini, datetime.fromtimestamp(a_ini).date()) if a_ini else ini
+        d_fim = min(fim, datetime.fromtimestamp(a_fim).date()) if a_fim and datetime.fromtimestamp(a_fim).date() < fim else fim
+        esperado = max(0, (d_fim - d_ini).days + 1)
+        if esperado and tem.get(cid, 0) < esperado:
+            lacunas.append({"campanha": cid, "item_id": item, "esperado": esperado, "tem": tem.get(cid, 0), "faltam": esperado - tem.get(cid, 0)})
+    c.close()
+    com_venda = {i for i, x in itens.items() if x["unidades"] > 0}
+    saida = {"periodo": {"de": i0, "ate": i1, "dias": dias},
+             "vendas": {"anuncios_com_venda": len(com_venda), "pedidos": sum(por_dia.values()), "dias_sem_pedido": sem_pedido,
+                        "cache_de": datetime.fromtimestamp(cache[0]).date().isoformat() if cache[0] else None,
+                        "cache_ate": datetime.fromtimestamp(cache[1]).date().isoformat() if cache[1] else None},
+             "escrow": {"pedidos_validos": len(validos_sn), "sem_escrow": len(sem_escrow)},
+             "ads": {"campanhas": len(camps), "anuncios_com_campanha": len(com_ads), "anuncios_com_venda_sem_campanha": len(com_venda - com_ads),
+                     "ultimo_dia_no_cache": ultimo, "lacunas": lacunas}}
+    saida["ok"] = (not sem_pedido and not lacunas and ultimo == i1 and (saida["vendas"]["cache_de"] or "9") <= i0)
+    return saida
+
+
 # ─── agregações ──────────────────────────────────────────────────────────────
 
 def _pedidos_item(c, item_id, desde_ts):

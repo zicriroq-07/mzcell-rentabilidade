@@ -34,12 +34,13 @@ class TestEtapas(unittest.TestCase):
         async def ok(c):
             feitas.append(("outra", c))
 
-        with mock.patch.object(cs, "_pivo", pivo), mock.patch.object(cs, "_rebot", ok), mock.patch.object(cs, "_amazon", ok):
+        with mock.patch.object(cs, "_pivo", pivo), mock.patch.object(cs, "_rebot", ok), mock.patch.object(cs, "_amazon", ok), mock.patch.object(cs, "_shopee", ok):
             r = asyncio.run(cs.rodar_extras(logs.append))
-        self.assertEqual(len(feitas), 8)
+        self.assertEqual(len(feitas), 9)
         self.assertEqual(r["pivo meli02"], "RuntimeError: 401 no ML")
         self.assertEqual(r["amazon amazon02"], "ok")
-        self.assertEqual(len(logs), 8)
+        self.assertEqual(r["shopee techseller"], "ok")
+        self.assertEqual(len(logs), 9)
 
     def test_espera_acaba_e_estoura_o_limite(self):
         asyncio.run(cs._esperar(lambda: False, 30))

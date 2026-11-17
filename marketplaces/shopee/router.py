@@ -176,6 +176,13 @@ def painel_anuncio(item_id: int, de: str = None, ate: str = None, loja: str = "t
         raise _http(e)
 
 
+@router.get("/painel/cobertura")
+def painel_cobertura(dias: int = 30, loja: str = "techseller"):
+    """Confere o cache local: pelo menos `dias` de vendas e de Ads para todos os anúncios (sem chamar a Shopee)."""
+    from marketplaces.shopee import anuncio as _an
+    return _an.cobertura(max(1, min(dias, 120)), loja)
+
+
 @router.get("/painel/fotos")
 def painel_fotos(ids: str = "", loja: str = "techseller"):
     from marketplaces.shopee import anuncio as _an
