@@ -2315,10 +2315,11 @@ function shpDesenharModal(d) {
   document.getElementById('shp-avisos').innerHTML = fullH + shpDestaqueAviso(dz) + avs + pivoH;
   // faixa fixa de 30 dias
   const orgs = Math.max(0, p30.unidades - p30.vads), roasObj = sim.roas_objetivo;
-  const K = [['Vendas por ADS (ped.)', r(p30.vads)], ['Vendas orgânicas', p30.unidades >= p30.vads ? r(orgs) : '—'], ['Receita por ADS', brl2(p30.receita_publi)], ['Investimento', brl2(p30.ads_total)],
+  const K = [['Vendas por ADS', r(p30.vads)], ['Vendas orgânicas', r(orgs)], ['Receita por ADS', brl2(p30.receita_publi)], ['Investimento', brl2(p30.ads_total)],
     ['ACOS', p30.receita_publi > 0 ? pct2(p30.ads_total / p30.receita_publi) : '—'], ['TACOS', p30.receita > 0 ? pct2(p30.tacos) : '—'], ['ROAS', p30.ads_total > 0 ? _dec2(p30.roas) : '—'], ['ROAS objetivo', roasObj > 0 ? _dec2(roasObj) : '—']];
   document.getElementById('shp-strip').style.setProperty('--cols', 8);
-  document.getElementById('shp-strip').innerHTML = K.map(k => `<div class="mx-kpi"><div class="mx-kpi-l">${k[0]}</div><div class="mx-kpi-v">${k[1]}</div></div>`).join('');
+  const dicaAds = 'Unidades válidas (sem cancelados e não pagos), como no Meli. A Shopee só informa os PEDIDOS atribuídos ao Ads e essa contagem inclui cancelados; o painel converte dia a dia: pedidos de Ads do dia × unidades válidas por pedido do dia. Orgânicas = unidades vendidas − vendas por Ads.';
+  document.getElementById('shp-strip').innerHTML = K.map((k, i) => `<div class="mx-kpi"${i < 2 ? ` title="${sacEsc(dicaAds)}"` : ''}><div class="mx-kpi-l">${k[0]}</div><div class="mx-kpi-v">${k[1]}</div></div>`).join('');
   const rot = k => `${mxDmy(d.rot[k][0])} a ${mxDmy(d.rot[k][1])}`;
   // ADS: a tabela compartilhada do Meli (Atual, P2, P3, P4 e o seletor de colunas)
   _adsDiaModo = false; _adsDia = null;

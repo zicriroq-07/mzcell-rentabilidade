@@ -294,7 +294,7 @@ function planoCsv(){
 // ═════════ MODAL DO ANÚNCIO (equivalente ao modal do Meli) ═════════
 var AN=null, anPer={dias:7}, anTab={};
 var ADS_COLS=[{k:"tacos",l:"TACOS",f:function(v){return pc(v*100)},inv:1},{k:"acos",l:"ACOS",f:function(v){return pc(v*100)},inv:1},{k:"roas",l:"ROAS",f:function(v){return n(v,2)}},
- {k:"ads_total",l:"Investimento (R$)",f:function(v){return n(v,2)},neu:1},{k:"receita_publi",l:"Receita ADS (R$)",f:function(v){return n(v,2)}},{k:"vads",l:"Pedidos ADS",f:function(v){return n(v,0)}},
+ {k:"ads_total",l:"Investimento (R$)",f:function(v){return n(v,2)},neu:1},{k:"receita_publi",l:"Receita ADS (R$)",f:function(v){return n(v,2)}},{k:"vads",l:"Vendas ADS (un.)",f:function(v){return n(v,0)}},
  {k:"vendas_sem_publi",l:"Sem ADS (un.)",f:function(v){return n(v,0)}},{k:"impressoes",l:"Impressões",f:function(v){return n(v,0)}},{k:"cliques",l:"Cliques",f:function(v){return n(v,0)}},
  {k:"ctr_c",l:"CTR",f:function(v){return pc(v*100)}},{k:"cpc_c",l:"CPC (R$)",f:function(v){return n(v,2)},inv:1},{k:"cvr_ads",l:"Conversão do ADS",f:function(v){return pc(v*100)}}];
 var ADS_PAD=["tacos","acos","roas","ads_total","receita_publi","vads","vendas_sem_publi"];
@@ -346,7 +346,7 @@ function renderAn(){
     '<div class="avs">'+pivoH+destH+avs+"</div>";
   // faixa fixa 30 dias
   var orgs=Math.max(0,p30.unidades-p30.vads),roasObj=sim.roas_objetivo;
-  var K=[["Vendas por ADS (ped.)",n(p30.vads,0)],["Vendas orgânicas",p30.unidades>=p30.vads?n(orgs,0):"—"],["Receita por ADS",rs(p30.receita_publi)],["Investimento",rs(p30.ads_total)],["ACOS",p30.receita_publi>0?pc(p30.ads_total/p30.receita_publi*100):"—"],["TACOS",p30.receita>0?pc(p30.tacos*100):"—"],["ROAS",p30.ads_total>0?n(p30.roas,2):"—"],["ROAS objetivo",roasObj>0?n(roasObj,2):"—"]];
+  var K=[["Vendas por ADS",n(p30.vads,0)],["Vendas orgânicas",p30.unidades>=p30.vads?n(orgs,0):"—"],["Receita por ADS",rs(p30.receita_publi)],["Investimento",rs(p30.ads_total)],["ACOS",p30.receita_publi>0?pc(p30.ads_total/p30.receita_publi*100):"—"],["TACOS",p30.receita>0?pc(p30.tacos*100):"—"],["ROAS",p30.ads_total>0?n(p30.roas,2):"—"],["ROAS objetivo",roasObj>0?n(roasObj,2):"—"]];
   var per=[["1",1],["7",7],["15",15],["30",30]].map(function(p){return '<button class="ps'+(anPer.dias==p[1]?" on":"")+'" onclick="anPreset('+p[1]+')">'+(p[1]==1?"D1":p[1]+"D")+"</button>"}).join("")+'<button class="ps'+(anPer.dias==0?" on":"")+'" onclick="document.getElementById(\'anDt\').style.display=\'inline-flex\'">Personalizado</button>'+
     '<span id="anDt" style="display:'+(anPer.dias==0?"inline-flex":"none")+';gap:6px;align-items:center"><input type="date" id="anDe" value="'+d.periodo.de+'"> até <input type="date" id="anAte" value="'+d.periodo.ate+'"><button class="bt" onclick="anBuscar()">Buscar</button></span><span class="nota">O período vale para as colunas abaixo · D1 = ontem (dia fechado, horário de Brasília)</span>';
   // ADS

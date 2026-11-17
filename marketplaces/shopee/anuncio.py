@@ -222,11 +222,14 @@ def _pedidos_item(c, item_id, desde_ts):
 
 def _vendas_periodo(peds, d0, d1, item_id):
     un = rec = ped = canc = 0
+    por_dia = {}          # dia -> {"todos": pedidos em qualquer status, "un": unidades de pedidos válidos}: base para separar vendas por Ads e orgânicas
     for p in peds:
         dia = painel._dia(p["criado"])
         if not (d0 <= dia <= d1):
             continue
         meus = [i for i in p["itens"] if i["item_id"] == item_id]
+        pd = por_dia.setdefault(dia, {"todos": 0, "un": 0.0})
+        pd["todos"] += 1
         if p["status"] in ("CANCELLED", "IN_CANCEL"):
             if (p.get("motivo_cancel") or "") != "Unpaid Order":      # cancelamento automático por falta de pagamento não é da loja
                 canc += 1
@@ -236,15 +239,48 @@ def _vendas_periodo(peds, d0, d1, item_id):
         ped += 1
         for i in meus:
             un += _f(i["qtd"])
+            pd["un"] += _f(i["qtd"])
             rec += _f(i["preco"]) * _f(i["qtd"])
-    return {"unidades": un, "receita": rec, "pedidos": ped, "cancelados": canc}
+    return {"unidades": un, "receita": rec, "pedidos": ped, "cancelados": canc, "por_dia": por_dia}
 
 
 def _ads_periodo(c, item_id, d0, d1):
     r = c.execute("SELECT COALESCE(SUM(d.imp),0),COALESCE(SUM(d.cliques),0),COALESCE(SUM(d.gasto),0),COALESCE(SUM(d.gmv),0),COALESCE(SUM(d.pedidos),0),"
                   "COUNT(DISTINCT d.dia) FROM ads_dia d JOIN ads_camp a ON a.campaign_id=d.campaign_id WHERE a.item_id=? AND d.dia>=? AND d.dia<=?",
                   (item_id, d0, d1)).fetchone()
-    return {"impressoes": r[0], "cliques": r[1], "ads_total": r[2], "receita_publi": r[3], "vads": r[4], "dias_com_dado": r[5]}
+    dias = {dia: p for dia, p in c.execute("SELECT d.dia, SUM(d.pedidos) FROM ads_dia d JOIN ads_camp a ON a.campaign_id=d.campaign_id "
+                                           "WHERE a.item_id=? AND d.dia>=? AND d.dia<=? GROUP BY d.dia", (item_id, d0, d1))}
+    return {"impressoes": r[0], "cliques": r[1], "ads_total": r[2], "receita_publi": r[3], "vads": r[4], "dias_com_dado": r[5], "ads_por_dia": dias}
+
+
+def ads_recentes(sid, item_id, dias=4):
+    """Reconsulta na Shopee os últimos dias de Ads do anúncio (o dia fechado só aparece na API no dia seguinte e os números ainda se ajustam).
+    Cache de 30 min; sem isso o último dia fica zerado e os períodos ficam menores que a realidade."""
+    def buscar():
+        c = _db()
+        ids = [r[0] for r in c.execute("SELECT campaign_id FROM ads_camp WHERE item_id=?", (item_id,))]
+        if not ids:
+            c.close()
+            return 0
+        fim = _hoje() - timedelta(days=1)
+        ini = fim - timedelta(days=dias - 1)
+        f = lambda d: d.strftime("%d-%m-%Y")
+        r = api.chamar("/api/v2/ads/get_product_campaign_daily_performance", sid, {"start_date": f(ini), "end_date": f(fim),
+                       "campaign_id_list": ",".join(map(str, ids))}).get("response", {})
+        n = 0
+        for cp in r.get("campaign_list", []):
+            for m in cp.get("metrics_list", []):
+                c.execute("INSERT OR REPLACE INTO ads_dia VALUES(?,?,?,?,?,?,?,?,?)", (cp["campaign_id"], _iso_ads(m["date"]), m.get("impression") or 0,
+                          m.get("clicks") or 0, _f(m.get("expense")), _f(m.get("broad_gmv")), m.get("broad_order") or 0,
+                          _f(m.get("direct_gmv")), m.get("direct_order") or 0))
+                n += 1
+        c.commit()
+        c.close()
+        return n
+    try:
+        return painel._vivo(f"adsrec{item_id}", buscar, 1800)
+    except Exception:
+        return 0
 
 
 def _visitas(c, item_id, d0, d1):
@@ -254,16 +290,32 @@ def _visitas(c, item_id, d0, d1):
     return (fim[0] - ini[0]) if fim and ini else None
 
 
+def ads_em_unidades(vendas_dia, ads_pedidos_dia):
+    """Unidades válidas atribuídas ao Ads, dia a dia: pedidos de Ads do dia (limitados ao total de pedidos do dia) × unidades válidas por pedido do dia.
+    Cancelados e não pagos ficam de fora, como no Meli. É uma estimativa: a Shopee não diz quais pedidos cancelados vieram do Ads."""
+    total = 0.0
+    for dia, pd in vendas_dia.items():
+        if pd["todos"] > 0:
+            total += min(pd["un"], min(ads_pedidos_dia.get(dia, 0), pd["todos"]) * pd["un"] / pd["todos"])
+    return round(total)
+
+
 def _periodo(c, peds, item_id, d0, d1):
     n = (datetime.fromisoformat(d1) - datetime.fromisoformat(d0)).days + 1
     v, a = _vendas_periodo(peds, d0, d1, item_id), _ads_periodo(c, item_id, d0, d1)
+    # A Shopee informa PEDIDOS atribuídos ao Ads e essa contagem inclui cancelados e não pagos (nunca passa do total de pedidos do dia, mas passa dos válidos).
+    # No Meli "vendas por Ads" são unidades vendidas e "sem Ads" = unidades pagas − unidades do Ads. Aqui converte dia a dia: parte válida do dia × pedidos de Ads do dia.
+    a["ads_pedidos_api"] = a["vads"]
+    a["vads"] = ads_em_unidades(v["por_dia"], a["ads_por_dia"])
     vis = _visitas(c, item_id, d0, d1)
     rec, g, rp = v["receita"], a["ads_total"], a["receita_publi"]
     o = {**v, **a, "de": d0, "ate": d1, "dias": n, "visitas": vis, "media_dia": v["unidades"] / n if n else 0,
          "tacos": g / rec if rec > 0 else 0, "acos": g / rp if rp > 0 else 0, "roas": rp / g if g > 0 else 0,
          "ctr_c": a["cliques"] / a["impressoes"] if a["impressoes"] else 0, "cpc_c": g / a["cliques"] if a["cliques"] else 0,
-         "cvr_ads": a["vads"] / a["cliques"] if a["cliques"] else 0, "vendas_sem_publi": max(0, v["unidades"] - a["vads"]),
+         "cvr_ads": a["ads_pedidos_api"] / a["cliques"] if a["cliques"] else 0, "vendas_sem_publi": max(0, v["unidades"] - a["vads"]),
          "conv_c": (v["pedidos"] / vis) if vis else None, "preco_c": rec / v["unidades"] if v["unidades"] else 0}
+    o.pop("por_dia", None)
+    o.pop("ads_por_dia", None)
     return o
 
 
@@ -700,6 +752,7 @@ def anuncio(item_id: int, de: str = None, ate: str = None, loja: str = "techsell
     cat = _catalogo(sid, item_id)
     if not cat:
         return {"erro": "Anúncio não encontrado na Shopee."}
+    ads_recentes(sid, item_id)
     c = _db()
     peds = _pedidos_item(c, item_id, int(time.time()) - 130 * DIA)
     base, aliq = painel._base_cmv(), painel._aliquota()

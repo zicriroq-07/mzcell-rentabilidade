@@ -99,3 +99,32 @@ class TestDestaque(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestAdsEmUnidades(unittest.TestCase):
+    """Vendas por Ads da Shopee em unidades válidas (sem cancelados), como no Meli; e a consistência entre períodos."""
+
+    def setUp(self):
+        from marketplaces.shopee import anuncio
+        self.f = anuncio.ads_em_unidades
+
+    def test_cancelados_nao_entram_nas_vendas_por_ads(self):
+        # dia com 10 pedidos (8 válidos = 8 un) e a Shopee atribuindo 10 pedidos ao Ads (conta cancelados)
+        self.assertEqual(self.f({"2026-11-10": {"todos": 10, "un": 8.0}}, {"2026-11-10": 10}), 8)
+
+    def test_ads_nunca_passa_do_total_de_pedidos(self):
+        self.assertEqual(self.f({"2026-11-10": {"todos": 5, "un": 5.0}}, {"2026-11-10": 9}), 5)
+
+    def test_proporcional_quando_parte_do_dia_e_organica(self):
+        # 20 pedidos, 16 válidos; 10 de Ads => 10 x 16/20 = 8 unidades por Ads, 8 orgânicas
+        self.assertEqual(self.f({"d": {"todos": 20, "un": 16.0}}, {"d": 10}), 8)
+
+    def test_sem_ads_no_dia(self):
+        self.assertEqual(self.f({"d": {"todos": 4, "un": 4.0}}, {}), 0)
+
+    def test_organicas_do_periodo_maior_nunca_menores_que_as_do_menor(self):
+        # 3 dias; o período de 3 dias contém o de 1 dia: orgânicas (un - ads) só podem crescer
+        vendas = {"a": {"todos": 10, "un": 9.0}, "b": {"todos": 20, "un": 18.0}, "c": {"todos": 12, "un": 12.0}}
+        ads = {"a": 7, "b": 15, "c": 12}
+        org = lambda dias: sum(vendas[d]["un"] for d in dias) - self.f({d: vendas[d] for d in dias}, ads)
+        self.assertGreaterEqual(org(["a", "b", "c"]), org(["c"]))
