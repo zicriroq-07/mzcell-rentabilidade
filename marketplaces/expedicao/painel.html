@@ -17,7 +17,7 @@
 @media (min-width:1100px){.mods{grid-template-columns:repeat(3,1fr)}}
 @media (min-width:1500px){.mods{grid-template-columns:repeat(4,1fr)}}
 .mod{background:#1e293b;border-radius:14px;padding:16px 20px 14px;border-top:7px solid #475569;display:flex;flex-direction:column;gap:6px}
-.mod.flex{border-color:#22c55e}.mod.coleta{border-color:#3b82f6}.mod.places{border-color:#f59e0b}.mod.dba{border-color:#a855f7}.mod.shopee{border-color:#f97316}
+.mod.flex{border-color:#22c55e}.mod.coleta{border-color:#3b82f6}.mod.places{border-color:#f59e0b}.mod.dba{border-color:#a855f7}.mod.shopee{border-color:#f97316}.mod.amazon_flash{border-color:#0ea5e9}
 .mod h2{margin:0;font-size:26px;display:flex;justify-content:space-between;align-items:baseline}
 .mod h2 small{font-size:16px;color:#94a3b8;font-weight:600}
 .rot{font-size:14px;letter-spacing:1.5px;color:#94a3b8;margin-top:2px}
@@ -85,14 +85,14 @@ setInterval(tick,1000);
 function tipo(id){return id.startsWith('places')?'places':(id.startsWith('shopee')?'shopee':id)}
 function cartao(m){
  const marcos=m.marcos||[],p=m.principal!=null?marcos[m.principal]:null;
- let h='<div class="mod '+tipo(m.id)+'"><h2><span>'+esc(m.nome)+'</span><small>'+(m.sem_dados?'sem leitura da Shopee':(m.pedidos?m.unidades+' un.':''))+'</small></h2>';
+ let h='<div class="mod '+tipo(m.id)+'"><h2><span>'+esc(m.nome)+'</span><small>'+(m.sem_dados?(m.id==='amazon_flash'?'modalidade ainda não ativa':'sem leitura da Shopee'):(m.pedidos?m.unidades+' un.':''))+'</small></h2>';
  const concluido=!m.sem_dados&&m.pedidos>0&&m.pendentes===0;
  if(!m.sem_dados&&!m.pedidos){h+='<div class="semped">sem pedidos hoje</div>'}
  else if(p){
   h+='<div class="rot">'+esc(p.rotulo==='Corte'?'ENTREGAR ATÉ':p.rotulo.toUpperCase())+'</div><div class="hora">'+esc(p.hhmm)+'</div>';
   h+=concluido?(agoraMs()>=Date.parse(p.iso)?'<div class="pronto">✔ TUDO PRONTO</div>':'<div class="cd ok" data-fim="1" data-iso="'+esc(p.iso)+'">--:--:--</div><div class="tagok">✔ OK · nada pendente</div>'):(m.sem_dados&&p.pendentes===0?'<div class="pronto">✔ CORTE ENCERRADO · 0 pendentes</div>':'<div class="cd ok" data-iso="'+esc(p.iso)+'">--:--:--</div>');
  }
- if(m.sem_dados){h+='<div class="nota">Nenhum pedido da Shopee lido do Bling agora.</div>'}
+ if(m.sem_dados){h+='<div class="nota">'+(m.id==='amazon_flash'?'Amazon Flash preparado: aparece aqui quando a modalidade for ativada.':'Nenhum pedido da Shopee lido agora.')+'</div>'}
  else if(m.pedidos){
   h+='<div class="nums"><div><b>'+m.pedidos+'</b><span>SAEM</span></div><div class="ok"><b>'+m.prontos+'</b><span>PRONTOS</span></div>'+
      '<div class="pend'+(m.pendentes?'':' zero')+'"><b>'+m.pendentes+'</b><span>PENDENTES</span></div></div>'+

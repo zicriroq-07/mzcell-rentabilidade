@@ -26,8 +26,8 @@ class TestModulos(unittest.TestCase):
     def test_sete_cartoes_na_ordem_do_monitor(self):
         r = d.montar([], {}, [], em(9), DIA, cortes.carregar())
         self.assertEqual([m["id"] for m in r["modulos"]],
-                         ["flex", "coleta", "places_meli02", "places_meli03", "dba", "shopee_xpress", "shopee_direta"])
-        self.assertEqual([m["id"] for m in r["modalidades"]], ["flex", "places", "coleta", "dba", "shopee_xpress", "shopee_direta"])
+                         ["flex", "coleta", "places_meli02", "places_meli03", "dba", "amazon_flash", "shopee_xpress", "shopee_direta"])
+        self.assertEqual([m["id"] for m in r["modalidades"]], ["flex", "places", "coleta", "dba", "amazon_flash", "shopee_xpress", "shopee_direta"])
         self.assertEqual(r["modalidades"][-1]["nome"], "Shopee Entrega Direta")
 
     def test_places_separa_por_conta_com_corte_proprio(self):

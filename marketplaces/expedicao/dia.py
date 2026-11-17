@@ -212,6 +212,9 @@ def _modulos(do_dia: list, marcas: dict, agora: datetime, dia, plataformas: list
     etapas = [(c.get("etapa", ""), c["corte"], "ponto" if "ponto" in str(c.get("etapa", "")).lower() else "etiqueta")
               for c in plat if c.get("canal") == "DBA"]
     mods.append(_modulo("dba", "Amazon DBA", dba, marcas, agora, dia, etapas or None, plataforma="Amazon"))
+    flash = [l for l in do_dia if l.get("canal") == "Flash"]
+    et_flash = [(c.get("etapa", "Corte do dia"), c["corte"], "corte") for c in plat if c.get("plataforma") == "Amazon" and c.get("canal") == "Flash"]
+    mods.append(_modulo("amazon_flash", "Amazon Flash", flash, marcas, agora, dia, et_flash or None, sem_dados=not flash, plataforma="Amazon"))
     shopee = [l for l in do_dia if l.get("conta") == "shopee"]
     for mid, nome, canal in (("shopee_xpress", "Shopee Xpress", "Shopee Xpress"), ("shopee_direta", "Shopee Entrega Direta (Flex)", "Entrega Direta")):
         et = [(c.get("etapa", "Corte do dia"), c["corte"], "corte") for c in plat if c.get("plataforma") == "Shopee" and c.get("canal") == canal]
@@ -223,7 +226,7 @@ def _modalidades(modulos: list, do_dia: list, marcas: dict, agora: datetime, dia
     """Cartões da Expedição com login, um por modalidade: iguais aos da TV, com Places somando as contas."""
     por_id = {m["id"]: dict(m, nome=m["nome"].replace(" (Flex)", "")) for m in modulos}
     por_id["places"] = _modulo("places", "Places", [l for l in do_dia if l.get("canal") == "Agência"], marcas, agora, dia)
-    return [por_id[i] for i in ("flex", "places", "coleta", "dba", "shopee_xpress", "shopee_direta")]
+    return [por_id[i] for i in ("flex", "places", "coleta", "dba", "amazon_flash", "shopee_xpress", "shopee_direta")]
 
 
 def montar(linhas: list, marcas: dict, full: list, agora: datetime, dia, plataformas: list = None) -> dict:

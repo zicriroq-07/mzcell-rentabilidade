@@ -15,7 +15,7 @@ import threading
 import time
 from datetime import datetime, timedelta, timezone
 
-from marketplaces.expedicao import amazon_dba, bling_checkout, ml, shopee_api, shopee_bling
+from marketplaces.expedicao import amazon_dba, amazon_flash, bling_checkout, ml, shopee_api, shopee_bling
 
 BRT = timezone(timedelta(hours=-3))
 ATUALIZA_SEG = 30            # idade a partir da qual uma abertura da tela dispara nova leitura
@@ -67,6 +67,10 @@ def montar() -> dict:
     res = ml.mapa(None, forcar=True)
     linhas, erros_bling = bling_checkout.enriquecer(res["linhas"])
     linhas_dba, erros_dba = amazon_dba.linhas()
+    linhas_flash, erros_flash = amazon_flash.linhas()
+    if linhas_flash:
+        linhas_flash, erros_bling_flash = bling_checkout.enriquecer(linhas_flash)      # checkout (Verificado) pelo Bling, como nas outras plataformas
+        erros_flash = dict(erros_flash, **{f"bling:{k}": v for k, v in (erros_bling_flash or {}).items()})
     if _shopee_pela_api():
         linhas_shopee, erros_shopee = shopee_api.linhas()
     else:
@@ -74,10 +78,10 @@ def montar() -> dict:
     if linhas_shopee and _shopee_pela_api():
         linhas_shopee, erros_bling_shopee = bling_checkout.enriquecer(linhas_shopee)      # checkout (Verificado) vem do Bling, o bipe vem da Shopee
         erros_bling = dict(erros_bling or {}, **{f"{k}": v for k, v in (erros_bling_shopee or {}).items()})
-    erros = dict(res.get("erros", {}), **erros_dba, **erros_shopee)
+    erros = dict(res.get("erros", {}), **erros_dba, **erros_flash, **erros_shopee)
     for c, e in (erros_bling or {}).items():
         erros.setdefault(f"bling:{c}", e)
-    return {"linhas": linhas + linhas_dba + linhas_shopee, "erros": erros}
+    return {"linhas": linhas + linhas_dba + linhas_flash + linhas_shopee, "erros": erros}
 
 
 def _atualizar(leitor=None):
