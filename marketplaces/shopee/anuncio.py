@@ -258,7 +258,7 @@ def cobertura(dias=30, loja="techseller"):
              "escrow": {"pedidos_validos": len(validos_sn), "sem_escrow": len(sem_escrow)},
              "ads": {"campanhas": len(camps), "anuncios_com_campanha": len(com_ads), "anuncios_com_venda_sem_campanha": len(com_venda - com_ads),
                      "ultimo_dia_no_cache": ultimo, "lacunas": lacunas}}
-    saida["ok"] = (not sem_pedido and not lacunas and ultimo == i1 and (saida["vendas"]["cache_de"] or "9") <= i0)
+    saida["ok"] = (not sem_pedido and not lacunas and not sem_escrow and ultimo == i1 and (saida["vendas"]["cache_de"] or "9") <= i0)
     return saida
 
 
