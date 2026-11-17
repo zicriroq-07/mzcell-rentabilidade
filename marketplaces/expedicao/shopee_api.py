@@ -84,6 +84,8 @@ def linhas(agora: datetime = None, loja: str = LOJA) -> tuple:
         if not canal:
             outros.add(str(o.get("shipping_carrier")))      # "Full" e afins: fora do galpão
             continue
+        if o.get("order_status") not in ("READY_TO_SHIP", "PROCESSED", "SHIPPED"):
+            continue                                         # já entregue, em devolução ou cancelado: não é trabalho do galpão
         if o.get("order_status") == "SHIPPED" and datetime.fromtimestamp(o.get("update_time") or 0, BRT).date() != hoje:
             continue
         saida.append(_linha(o, canal, hoje))
