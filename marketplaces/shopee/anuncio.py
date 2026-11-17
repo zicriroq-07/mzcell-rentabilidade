@@ -703,7 +703,15 @@ def anuncio(item_id: int, de: str = None, ate: str = None, loja: str = "techsell
     alvos = [x["roas_alvo"] for x in camps if x["status"] == "ongoing" and x["roas_alvo"]]
     sbs_all = sbs_estoque(sid)
     sbs = sbs_all.get(item_id)
-    vel = 0.4 * P7_unid(c, peds, item_id, ontem) / 7 + 0.6 * P30["unidades"] / 30
+    u7 = P7_unid(c, peds, item_id, ontem)
+    vel = painel.PESO_7D * u7 / 7 + painel.PESO_30D * P30["unidades"] / 30
+    # sem venda em 7 dias e sem estoque válido: a média de 120 dias mostra se era ruptura (mesma regra do plano de envio)
+    u120 = _vendas_periodo(peds, (ontem - timedelta(days=painel.JANELA_RUPTURA - 1)).isoformat(), ontem.isoformat(), item_id)["unidades"]
+    primeiro = min((painel._dia(p["criado"]) for p in peds), default=iso(ontem))
+    dias_base = max(1, min(painel.JANELA_RUPTURA, (ontem - datetime.fromisoformat(primeiro).date()).days + 1))
+    ruptura = False
+    if sbs and u7 == 0 and u120 > 0 and (sbs["vendavel"] + sbs["a_caminho"]) <= 0:
+        ruptura, vel = True, max(vel, u120 / dias_base)
     preco_atual = next((m["preco"] for m in cat["modelos"] if m.get("preco")), 0)
     sim = _custos_reais(c, peds, item_id, base, aliq, preco_atual)
     sim["tacos30"] = P30["tacos"]
@@ -725,7 +733,7 @@ def anuncio(item_id: int, de: str = None, ate: str = None, loja: str = "techsell
     full = None
     if sbs:
         valido = sbs["vendavel"] + sbs["a_caminho"]
-        full = {**sbs, "vel_nossa": round(vel, 2), "cobertura": round(valido / vel, 1) if vel > 0 else None, "eh_full": True,
+        full = {**sbs, "vel_nossa": round(vel, 2), "ruptura_provavel": ruptura, "media_120d": round(u120 / dias_base, 2), "cobertura": round(valido / vel, 1) if vel > 0 else None, "eh_full": True,
                 "sugestao": max(0, math.ceil(painel.META_DIAS * vel - valido)) if vel > 0 else 0, "meta_dias": painel.META_DIAS}
     return {"item": {k: cat.get(k) for k in ("item_id", "titulo", "foto", "full", "status", "nota", "comentarios", "views", "likes", "vendas_total", "modelos", "n_imagens", "video")},
             "link": f"{LOJA_URL}/{sid}/{item_id}", "sku": ", ".join(sorted({m["sku"] for m in cat["modelos"] if m["sku"]})) or "Sem SKU",

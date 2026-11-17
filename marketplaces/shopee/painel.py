@@ -25,6 +25,8 @@ DB = os.path.join(lojas.BASE_DIR, "shopee.db")
 BRT = timezone(timedelta(hours=-3))
 DIA = 86400
 META_DIAS = 20
+PESO_7D, PESO_30D = 0.6, 0.4        # Shopee: 60% das vendas de 7 dias + 40% das de 30 (o Meli usa o inverso)
+JANELA_RUPTURA = 120                # sem venda nos últimos 7 dias: média de 120 dias para saber se o estoque estava rompido
 FINAIS = {"COMPLETED", "CANCELLED"}
 # cobranças do vendedor no escrow além de comissão, serviço, frete, Full e campanha (nomes da API; conferir no Seller Centre)
 OUTRAS_TARIFAS = ("seller_transaction_fee", "ads_escrow_top_up_fee_or_technical_support_fee",
@@ -388,14 +390,19 @@ def estoque_e_previsao(sid, dias_hist=30, meta=None):
         por_item[l["item_id"]] = por_item.get(l["item_id"], 0) + 1
     c = _db()
     agora = int(time.time())
-    v7, v30 = {}, {}
-    for (dados,) in c.execute("SELECT dados FROM pedidos WHERE criado>=? AND status NOT IN ('CANCELLED','IN_CANCEL','UNPAID','TO_RETURN','RETURNED')", (agora - 30 * DIA,)):
+    v7, v30, v120 = {}, {}, {}
+    primeiro = c.execute("SELECT MIN(criado) FROM pedidos").fetchone()[0] or agora
+    dias_base = max(1, min(JANELA_RUPTURA, (agora - primeiro) / DIA))      # dias realmente cobertos pelo banco (até 120)
+    for (dados,) in c.execute("SELECT dados FROM pedidos WHERE criado>=? AND status NOT IN ('CANCELLED','IN_CANCEL','UNPAID','TO_RETURN','RETURNED')", (agora - JANELA_RUPTURA * DIA,)):
         p = json.loads(dados)
         for i in p["itens"]:
             k = (i["item_id"], i["model_id"] or 0)
-            v30[k] = v30.get(k, 0) + _f(i["qtd"])
+            q = _f(i["qtd"])
+            v120[k] = v120.get(k, 0) + q
+            if p["criado"] >= agora - 30 * DIA:
+                v30[k] = v30.get(k, 0) + q
             if p["criado"] >= agora - 7 * DIA:
-                v7[k] = v7.get(k, 0) + _f(i["qtd"])
+                v7[k] = v7.get(k, 0) + q
     c.close()
     out = []
     for l in linhas:
@@ -410,10 +417,20 @@ def estoque_e_previsao(sid, dias_hist=30, meta=None):
             l["fonte"] = "item"
         k = (l["item_id"], l["model_id"] or 0)
         a7, a30 = v7.get(k, 0), v30.get(k, 0)
-        vel = 0.4 * a7 / 7 + 0.6 * a30 / 30
+        vel = PESO_7D * a7 / 7 + PESO_30D * a30 / 30
         valido = l["est_full"] + l["a_caminho"]
+        a120 = v120.get(k, 0)
+        vel120 = a120 / dias_base
+        # sem venda nos últimos 7 dias: a média de 120 dias diz se era falta de demanda ou ruptura de estoque
+        sem7 = a7 == 0
+        sem_estoque = (valido <= 0) if l["full"] else (_f(l.get("est_vendedor")) <= 0)
+        ruptura = bool(sem7 and a120 > 0 and sem_estoque)
+        base = "7d/30d"
+        if ruptura and vel120 > vel:
+            vel, base = vel120, "120d (ruptura)"
         sug = max(0, math.ceil(meta * vel - valido)) if l["full"] else None
-        out.append({**l, "v7": a7, "v30": a30, "vel_dia": round(vel, 2),
+        out.append({**l, "v7": a7, "v30": a30, "v120": a120, "vel120": round(vel120, 2), "sem_venda_7d": sem7, "ruptura_provavel": ruptura,
+                    "base_vel": base, "vel_dia": round(vel, 2),
                     "cobertura_dias": round(valido / vel, 1) if (l["full"] and vel > 0) else None,
                     "sugestao_full": sug})
     return out
@@ -577,7 +594,8 @@ def plano_full(meta: int = 20, loja: str = "techseller", so_com_envio: bool = Tr
         out.append({"item_id": l["item_id"], "model_id": l["model_id"], "sku": l["sku"], "nome": l["nome"], "variacao": l.get("variacao", ""),
                     "no_full": no_full, "vendavel": 0 if no_full else l["est_full"], "reservado": 0 if no_full else l["reservado"],
                     "nao_apto": 0 if no_full else l.get("nao_apto", 0), "a_caminho": 0 if no_full else l["a_caminho"],
-                    "est_vendedor": tem, "vel_dia": vel, "v7": l["v7"], "v30": l["v30"], "cobertura": cob, "sugestao": sug,
+                    "est_vendedor": tem, "vel_dia": vel, "v7": l["v7"], "v30": l["v30"], "v120": l["v120"], "vel120": l["vel120"],
+                    "ruptura_provavel": l["ruptura_provavel"], "base_vel": l["base_vel"], "cobertura": cob, "sugestao": sug,
                     "enviar": enviar, "falta_estoque": max(0, sug - int(tem)), "prioridade": prio, "fonte": "sem Full" if no_full else l.get("fonte")})
     ordem = {"critico": 0, "novo": 1, "atencao": 2, "ok": 3}
     out.sort(key=lambda r: (ordem[r["prioridade"]], -r["vel_dia"] if r["prioridade"] == "novo" else (r["cobertura"] if r["cobertura"] is not None else 9999)))
