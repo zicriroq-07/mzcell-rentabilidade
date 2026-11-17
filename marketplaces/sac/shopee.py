@@ -147,7 +147,8 @@ def devolucoes(dias: int = 30, loja: str = LOJA) -> dict:
                           "logistica": d.get("logistics_status"), "tem_fotos": bool(x.get("image") or x.get("buyer_videos")), "item": _item_resumo(x),
                           "acao": acao(f, prazo, vencido), "tipo": x.get("return_refund_type"), "prazo_vencido": vencido,
                           "contestavel": f in ("chegou", "responder") and not vencido})
-        itens.sort(key=lambda i: (ORDEM[i["fase"]], i["criada"] or ""), reverse=False)
+        itens.sort(key=lambda i: i["criada"] or "", reverse=True)                      # mais recentes primeiro
+        itens.sort(key=lambda i: (ORDEM[i["fase"]], not i["contestavel"]))               # por fase; dentro dela, as ainda contestáveis antes
         return itens
     itens = _com_cache(("dev", loja, dias), 600, montar)
     por = {}
