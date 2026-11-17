@@ -176,6 +176,15 @@ def painel_anuncio(item_id: int, de: str = None, ate: str = None, loja: str = "t
         raise _http(e)
 
 
+@router.get("/painel/fotos")
+def painel_fotos(ids: str = "", loja: str = "techseller"):
+    from marketplaces.shopee import anuncio as _an
+    try:
+        return _an.fotos([i for i in ids.split(",") if i][:200], loja)
+    except ErroShopee as e:
+        raise _http(e)
+
+
 @router.post("/painel/anuncio/{item_id}/mapa")
 def painel_mapa(item_id: int, corpo: _MapaIn):
     from marketplaces.shopee import anuncio as _an

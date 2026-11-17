@@ -525,6 +525,7 @@ html .btn-sync-produto.btn-azul:hover:not(:disabled){background:var(--blue);colo
 
 .mx-avisos{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:0 0 8px;min-height:0;}
 .mx-aviso{display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:999px;font-size:12px;font-weight:700;border:1px solid;cursor:default;}
+.mx-aviso.shp-critico{color:#991b1b;background:rgba(239,68,68,.12);border-color:rgba(239,68,68,.5);}.mx-aviso.shp-atencao{color:#92400e;background:rgba(245,158,11,.16);border-color:rgba(245,158,11,.6);}.mx-aviso.shp-info{color:#1e40af;background:rgba(59,130,246,.10);border-color:rgba(59,130,246,.35);}
 .mx-aviso.rebot{color:#166534;background:rgba(34,197,94,.14);border-color:rgba(34,197,94,.55);box-shadow:0 0 0 3px rgba(34,197,94,.10);}
 .mx-aviso.pivo-atencao{color:#92400e;background:rgba(245,158,11,.16);border-color:rgba(245,158,11,.6);}
 .mx-aviso.pivo-ok{color:#166534;background:rgba(34,197,94,.10);border-color:rgba(34,197,94,.35);}
@@ -878,7 +879,7 @@ html[data-tema="claro"] .btn-anotacao:hover{background:var(--brand);color:#fff;}
       </div>
       <div class="tab" id="tab-amazon01"><div id="repo-amazon01"></div><div id="painel-amazon01"></div></div>
       <div class="tab" id="tab-amazon02"><div id="repo-amazon02"></div><div id="painel-amazon02"></div></div>
-      <div class="tab" id="tab-shopee"><iframe id="frame-shopee" class="tab-frame" title="Shopee"></iframe></div>
+      <div class="tab" id="tab-shopee"><div id="painel-shopee"></div></div>
       <div class="tab" id="tab-magalu"><div class="periodo-card" style="margin:24px"><span class="periodo-label">Magalu</span><span class="sac-mut">Em construção</span></div></div>
       <div class="tab" id="tab-cmv">
         <div class="periodo-card" style="flex-wrap:wrap">
@@ -1078,6 +1079,43 @@ html[data-tema="claro"] .btn-anotacao:hover{background:var(--brand);color:#fff;}
       <span class="mx-cap-per">O período vale para as três colunas abaixo</span>
     </div>
     <div id="amz-body"></div>
+  </div>
+</div>
+
+<div class="overlay" id="modal-shp">
+  <div class="modal modal-wide">
+    <button class="modal-close" onclick="shpFechar()">✕</button>
+    <div class="modal-header">
+      <img id="shp-foto" class="foto-m" style="display:none" alt="">
+      <div class="modal-header-info">
+        <div class="modal-prod" id="shp-title"></div>
+        <div class="modal-meta"><span class="modal-sku" id="shp-sku"></span><span style="color:var(--border2)">·</span><span class="modal-mlb" id="shp-iid"></span></div>
+      </div>
+      <div class="modal-header-actions">
+        <button class="btn-sync-produto btn-azul" id="shp-btn-link" title="Abre o anúncio na Shopee">Link do anúncio ↗</button>
+        <button class="btn-sync-produto" onclick="shpModalBuscar()" title="Recarrega os dados do anúncio">↻ Atualizar</button>
+      </div>
+    </div>
+    <div class="mx-avisos" id="shp-avisos"></div>
+    <div class="mx-tags" id="shp-tags"></div>
+    <div class="mx-pos2" id="shp-pos" style="margin:0 0 10px"></div>
+    <div class="mx-strip-wrap">
+      <div class="mx-strip-cap">Últimos 30 dias (fixo)</div>
+      <div class="mx-strip" id="shp-strip"></div>
+    </div>
+    <div class="modal-period-bar">
+      <button class="modal-preset" id="shpp-d1" onclick="shpModalDia(1,this)">D1</button>
+      <button class="modal-preset active" id="shpp-7" onclick="shpModalPeriodo(7,this)">7D</button>
+      <button class="modal-preset" id="shpp-15" onclick="shpModalPeriodo(15,this)">15D</button>
+      <button class="modal-preset" id="shpp-30" onclick="shpModalPeriodo(30,this)">30D</button>
+      <button class="modal-preset" id="shpp-c" onclick="shpModalPeriodo(0,this)">Personalizado</button>
+      <span id="shp-datas" style="display:none;align-items:center;gap:6px">
+        <input type="date" id="shp-de" class="modal-date"/> <span class="modal-date-sep">até</span> <input type="date" id="shp-ate" class="modal-date"/>
+        <button class="btn-sync-produto" onclick="shpModalBuscar()" style="height:30px;padding:0 12px;font-size:11px">Buscar</button>
+      </span>
+      <span class="mx-cap-per">O período vale para as três colunas abaixo</span>
+    </div>
+    <div id="shp-body"></div>
   </div>
 </div>
 
@@ -1408,7 +1446,7 @@ function switchTab(tab, btn) {
   if(tab==='usuarios') usrCarregar();
   if(tab==='produtividade') prodAbrir();
   if(tab==='amazon01'||tab==='amazon02') amzAbrirAba(tab);
-  if(tab==='shopee'){ const f=document.getElementById('frame-shopee'); if(!f.getAttribute('src')) f.setAttribute('src',`${API}/shopee/painel`); }
+  if(tab==='shopee') shopeeAbrirAba();
   if(tab==='expedicao'){ const f=document.getElementById('frame-expedicao'); if(!f.getAttribute('src')) f.setAttribute('src',`${API}/expedicao`); }
   if(tab==='sac' && !window._sacIniciado){ window._sacIniciado=true; sacIr('geral'); }
 }
@@ -2031,72 +2069,355 @@ async function amzTrocarSt() {
     toast(ok ? `Imposto ${comSt?'COM ST':'SEM ST'} salvo para ${rs.length > 1 ? 'os ' + rs.length + ' SKUs do ASIN' : 'o SKU'}` : 'Erro ao salvar o imposto', ok ? undefined : 'error');
   } catch(e) { toast('Erro ao salvar o imposto', 'error'); }
 }
-// ── SHOPEE: esqueleto na mesma estrutura (lojas e autorização; dados nas próximas fases) ──
-async function shopeeAbrirAba() {
+// ── SHOPEE: aba nativa (mesma estrutura do Meli e da Amazon: período, cartões, tabela por anúncio e modal do anúncio) ──
+// Dados: /shopee/painel/dados (vendas por SKU, agrupadas aqui por anúncio) e /shopee/painel/anuncio/{item_id} (modal).
+// Tags, mapa de alterações e posição usam os mesmos endpoints genéricos do Meli (conta "shopee", chave = item_id).
+const SHP = {dias: 30, dados: null, itens: [], fotos: {}, pos: {}, timer: null};
+const _shpFiltro = {busca: '', chip: 'todos'};
+let _shp = null;
+const shpN = (v, c = 2) => (v == null || isNaN(v)) ? '—' : Number(v).toLocaleString('pt-BR', {minimumFractionDigits: c, maximumFractionDigits: c});
+const shpRs = v => (v == null || isNaN(v)) ? '—' : 'R$ ' + shpN(v, 2);
+const shpPc = v => (v == null || isNaN(v)) ? '—' : shpN(v, 2) + '%';
+const shpFr = v => (v == null || isNaN(v)) ? '—' : shpN(v * 100, 2) + '%';   // fração → %
+
+function shopeeAbrirAba() {
   const box = document.getElementById('painel-shopee');
-  box.innerHTML = '<div class="periodo-card"><span class="periodo-label">Shopee</span><span class="sac-mut">carregando…</span></div>';
-  let lojas = null, alertas = null;
-  try { lojas = await (await fetch(`${API}/shopee/lojas`)).json(); alertas = await (await fetch(`${API}/shopee/alertas`)).json(); } catch(e) {}
-  const linhas = (lojas?.lojas || []).map(l => `<tr><td><b>${sacEsc(l.nome)}</b><div class="modal-sku">${sacEsc(l.loja)} · ${sacEsc(l.shop_id)}</div></td><td>${l.autorizada ? 'autorizada' : 'sem autorização'}</td><td>${sacEsc(l.mensagem||'')}</td></tr>`).join('');
-  box.innerHTML = `
-    <div class="periodo-card"><span class="periodo-label">Ambiente</span><b>${sacEsc(lojas?.ambiente || '—')}</b><span class="sac-mut">${lojas?.app_configurado ? 'app configurado' : 'app ainda não configurado (faltam as credenciais do sandbox)'}</span></div>
-    ${(alertas?.alertas||[]).map(a => `<div class="sac-linha alerta"><span><b>${sacEsc(a.nome)}</b>: ${sacEsc(a.mensagem)}</span></div>`).join('')}
-    <div class="table-card">${linhas ? `<table class="tbl"><thead><tr><th>Loja</th><th>Autorização</th><th>Situação</th></tr></thead><tbody>${linhas}</tbody></table>`
-      : '<div class="empty"><div class="empty-text">Nenhuma loja cadastrada. Use o formulário shopee_env_form.html e o validador para configurar o sandbox.</div></div>'}</div>
-    <div class="sac-lin" style="margin-top:12px">Quando as lojas estiverem autorizadas, esta aba terá a mesma estrutura da Amazon e do Mercado Livre: cartões do período, tabela por SKU, modal com simulação e o seletor COM ST / SEM ST (alíquotas por loja).</div>
-    <div id="shp-prec" style="margin-top:14px"></div>`;
-  shopeePrecificarInit();
-}
-
-// Precificador da Shopee (provisório até o módulo ser concluído): preço + ROAS objetivo → margem por unidade
-function shopeePrecificarInit() {
-  const el = document.getElementById('shp-prec'); if (!el) return;
-  el.innerHTML = `<div class="table-card" style="padding:14px">
-    <h4 style="margin:0 0 10px">Precificador Shopee</h4>
-    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
-      <div class="sim-field"><label>Preço de venda (R$)</label><input type="number" id="shp-preco" step="0.01" min="0"/></div>
-      <div class="sim-field"><label>ROAS objetivo</label><input type="number" id="shp-roas" step="0.01" min="0"/></div>
-      <div class="sim-field"><label>SKU (busca o CMV na base)</label><input type="text" id="shp-sku"/></div>
-      <div class="sim-field"><label>CMV (R$) se não houver SKU</label><input type="number" id="shp-cmv" step="0.01" min="0"/></div>
-      <div class="sim-field"><label>Frete unitário (R$)</label><input type="number" id="shp-frete" step="0.01" min="0"/></div>
-      <div class="sim-field"><label>Destaque (%) · a confirmar</label><input type="number" id="shp-destaque" step="0.01" min="0" value="3.50"/></div>
-      <div class="sim-field"><label>Devolução por item (R$) · a confirmar</label><input type="number" id="shp-devolucao" step="0.01" min="0" value="0.50"/></div>
-      <button class="btn-sync-produto" onclick="shopeePrecificarCalc()" style="height:30px;padding:0 12px;font-size:11px">Calcular</button>
-    </div>
-    <div id="shp-res" style="margin-top:12px"></div>
-  </div>`;
-}
-
-async function shopeePrecificarCalc() {
-  const v = id => document.getElementById(id)?.value || '';
-  const preco = parseFloat(v('shp-preco'));
-  const out = document.getElementById('shp-res');
-  if (!(preco > 0)) { out.innerHTML = '<div class="sac-mut">Informe o preço de venda.</div>'; return; }
-  const dest = (parseFloat(v('shp-destaque')) || 0) / 100;
-  const devol = parseFloat(v('shp-devolucao')) || 0;
-  const q = new URLSearchParams({preco: preco.toFixed(2), roas: v('shp-roas') || '0', cmv: v('shp-cmv') || '0', frete: v('shp-frete') || '0', sku: v('shp-sku').trim(), destaque: String(dest), devolucao: String(devol)});
-  try {
-    const r = await (await fetch(`${API}/shopee/precificar?${q}`)).json();
-    if (r.erro) { out.innerHTML = `<div class="sac-mut">${sacEsc(r.erro)}</div>`; return; }
-    const linha = (l, val, neg) => `<tr><td>${l}</td><td style="text-align:right">${neg ? '−' : ''}${val}</td></tr>`;
-    const margemCor = r.margem >= 0 ? 'var(--green)' : 'var(--red)';
-    out.innerHTML = `<table class="tbl" style="max-width:520px"><tbody>
-      ${linha('Preço de venda', brl2(r.preco))}
-      ${linha('Comissão Shopee (' + pct1(r.comissao_pct) + ')', brl2(r.comissao), true)}
-      ${linha('Taxa fixa por item', brl2(r.taxa_fixa), true)}
-      ${linha('Imposto (' + pct1(r.imposto_pct) + ', ' + sacEsc(r.empresa || '') + ')', brl2(r.imposto), true)}
-      ${linha('CMV' + (r.sku ? ' (SKU ' + sacEsc(r.sku) + ')' : ''), brl2(r.cmv), true)}
-      ${linha('Frete', brl2(r.frete), true)}
-      ${linha('ADS (preço ÷ ROAS ' + fmtN(Number(r.roas_objetivo || 0),2) + ')', brl2(r.ads), true)}
-      ${linha('Destaque (' + fmtN((r.destaque_pct * 100),2) + '% do preço)', brl2(r.destaque), true)}
-      ${linha('Devolução por item', brl2(r.devolucao), true)}
-      <tr><td><b>Margem por unidade</b></td><td style="text-align:right;font-weight:700;color:${margemCor}">${brl2(r.margem)} · ${pct1(r.margem_pct)}</td></tr>
-      <tr><td>Preço de equilíbrio (margem zero)</td><td style="text-align:right">${r.preco_equilibrio != null ? brl2(r.preco_equilibrio) : '—'}</td></tr>
-    </tbody></table>
-    <div class="sac-mut" style="font-size:11px;margin-top:6px">Destaque (3,5%) e devolução (R$ 0,50) são valores informados e ainda não confirmados na Central. Comissão e taxa fixa: tabela provisória de artigos de mercado de 2026 (faixas até R$ 79,99 = 20% + R$ 4,00; R$ 80 a R$ 99,99 = 14% + R$ 16,00; R$ 100 a R$ 199,99 = 14% + R$ 20,00; R$ 200 ou mais = 14% + R$ 26,00). Conferir na Central do Vendedor.</div>`;
-  } catch (e) {
-    out.innerHTML = '<div class="sac-mut">Não foi possível calcular agora.</div>';
+  tagsCarregar('shopee');
+  if (!box.dataset.pronto) {
+    box.dataset.pronto = '1';
+    box.innerHTML = `
+      <div class="periodo-card">
+        <span class="periodo-label">Período</span>
+        <div class="modal-period-bar" style="padding:0;margin:0;border:0">
+          <button class="modal-preset" onclick="shpPeriodo(7,this)">7D</button>
+          <button class="modal-preset" onclick="shpPeriodo(15,this)">15D</button>
+          <button class="modal-preset active" onclick="shpPeriodo(30,this)">30D</button>
+          <button class="modal-preset" onclick="shpPeriodo(60,this)">60D</button>
+        </div>
+        <a class="btn-sync-produto" style="margin-left:auto;text-decoration:none" href="${API}/shopee/painel" target="_blank" title="DRE da loja, devoluções, Full e saúde da conta">Painel completo ↗</a>
+        <button class="btn-sync-produto" id="shpb" onclick="shpAtualizar()"><span id="shpi">↻</span> Atualizar dados</button>
+        <span id="shps" class="sac-mut"></span>
+      </div>
+      <div class="kpis" id="shpk"></div>
+      <div class="table-card"><div id="shpt"><div class="empty"><div class="empty-text">Carregando…</div></div></div></div>`;
   }
+  shpCarregar();
+}
+function shpPeriodo(dias, btn) {
+  document.querySelectorAll('#painel-shopee .modal-preset').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active'); SHP.dias = dias; shpCarregar();
+}
+async function shpCarregar() {
+  const st = document.getElementById('shps'); st.textContent = 'carregando…';
+  try {
+    const r = await fetch(`${API}/shopee/painel/dados?dias=${SHP.dias}&vivo=0`);
+    const d = await r.json(); if (!r.ok) throw new Error(d.detail || r.status);
+    SHP.dados = d; SHP.itens = shpAgrupar(d);
+    try { SHP.pos = (await (await fetch(`${API}/posicoes/shopee`)).json()).posicoes || {}; } catch (e) {}
+    shpDesenhar();
+    st.textContent = `dados de ${(d.gerado_em || '').replace('T', ' ')}${d.sync?.rodando ? ' · atualizando…' : ''}`;
+    if (d.sync?.rodando) shpAcompanhar();
+  } catch (e) { st.textContent = 'erro: ' + e.message; }
+}
+// vendas.skus vem por SKU (variação); o anúncio é o item_id: soma os SKUs do mesmo anúncio
+function shpAgrupar(d) {
+  const por = {};
+  for (const s of (d.vendas?.skus || [])) {
+    const k = String(s.item_id);
+    const a = por[k] || (por[k] = {item_id: k, nome: s.nome, skus: [], unid: 0, receita: 0, comissao: 0, servico: 0, frete: 0, extras: 0, imposto: 0, cmv: 0, margem: 0, ads: 0, margem_pos_ads: 0, sem_cmv: false});
+    a.skus.push(s.sku);
+    for (const c of ['unid', 'receita', 'comissao', 'servico', 'frete', 'extras', 'imposto', 'cmv', 'margem', 'ads', 'margem_pos_ads']) a[c] += Number(s[c] || 0);
+    if (s.cmv_unit == null) a.sem_cmv = true;
+  }
+  return Object.values(por).map(a => ({...a, margem_pct: a.receita > 0 ? a.margem_pos_ads / a.receita * 100 : null, tacos: a.receita > 0 ? a.ads / a.receita : null}))
+    .sort((x, y) => y.receita - x.receita);
+}
+function shpDesenhar() {
+  const d = SHP.dados, t = d.vendas.totais, tc = d.tacos || {};
+  const pctM = t.receita > 0 ? t.margem_pos_ads / t.receita : null;
+  const cards = [
+    {l: 'Receita líquida', v: brl2(t.receita), s: `${r(t.pedidos)} pedidos pagos no período`, c: 'var(--blue)'},
+    {l: 'Margem após Ads', v: brl2(t.margem_pos_ads), s: pctM != null ? pct1(pctM) + ' da receita' : '', c: 'var(--green)'},
+    {l: 'Margem de contribuição', v: brl2(t.margem), s: 'antes do Ads', c: 'var(--gold)'},
+    {l: 'Invest. Ads', v: brl2(tc.gasto || 0), s: 'gasto das campanhas', c: 'var(--purple)'},
+    {l: 'TACOS global', v: tc.tacos_pct != null ? shpPc(tc.tacos_pct) : '—', s: 'Ads ÷ receita', c: 'var(--orange)'},
+    {l: 'Unidades vendidas', v: r(t.unidades), s: `${SHP.itens.length} anúncios`, c: 'var(--text)'},
+  ];
+  document.getElementById('shpk').innerHTML = cards.map(k => `<div class="kpi" style="--kpi-color:${k.c}"><div class="kpi-label">${k.l}</div><div class="kpi-val">${k.v}</div><div class="kpi-footer"><span class="kpi-sub">${k.s}</span></div></div>`).join('');
+  const chips = [['todos', 'Todos'], ['sem_cmv', 'Sem CMV'], ['negativa', 'Margem negativa'], ['baixa', 'Margem abaixo de 10%'], ['rank', '🏆 Ranqueamento'], ['sazon', '🗓 Sazonalidade']];
+  document.getElementById('shpt').innerHTML = `
+    <div class="tb-toolbar" style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:10px 12px">
+      ${chips.map(([k, l]) => `<button class="marg-chip${_shpFiltro.chip === k ? ' active' : ''}" data-chip="${k}" onclick="shpChip('${k}',this)">${l}</button>`).join('')}
+      <div class="search-box" style="margin-left:auto"><input placeholder="Buscar produto, SKU ou item..." value="${sacEsc(_shpFiltro.busca)}" oninput="shpBuscar(this.value)"/></div>
+      <span id="shpcont" class="sac-mut" style="font-size:11px"></span>
+    </div>
+    <table class="tbl"><thead><tr><th>Produto</th><th>Receita líq.</th><th>Un.</th><th>ADS</th><th>TACOS</th><th>Margem após Ads</th><th>Margem %</th><th>Posição Shopee</th></tr></thead><tbody id="shpTbody"></tbody></table>
+    <div class="sac-lin" style="padding:10px 16px">Base: pedidos pagos e não cancelados, tarifas reais do escrow da Shopee. CMV pela base do Grupo (Configurações → CMV); anúncio sem CMV mostra a margem sem custo do produto. Imposto pela alíquota da Techseller.</div>`;
+  shpTabela();
+}
+function shpChip(k, btn) { _shpFiltro.chip = k; btn.parentElement.querySelectorAll('[data-chip]').forEach(b => b.classList.toggle('active', b === btn)); shpTabela(); }
+function shpBuscar(t) { _shpFiltro.busca = t; shpTabela(); }
+function shpPosBadge(id) {
+  const p = SHP.pos[String(id)];
+  return p && p.posicao ? `<span class="pos-badge">p${p.pagina || 1} #${p.posicao}</span>` : '<span class="pos-badge none">sem registro</span>';
+}
+function shpTabela() {
+  const q = _shpFiltro.busca.trim().toLowerCase(), todos = SHP.itens;
+  const passa = a => {
+    if (q && !`${a.nome} ${a.skus.join(' ')} ${a.item_id}`.toLowerCase().includes(q)) return false;
+    if (_shpFiltro.chip === 'sem_cmv') return a.sem_cmv;
+    if (_shpFiltro.chip === 'negativa') return !a.sem_cmv && (a.margem_pct || 0) < 0;
+    if (_shpFiltro.chip === 'baixa') return !a.sem_cmv && (a.margem_pct || 0) < 10;
+    if (_shpFiltro.chip === 'rank') return !!_tags.shopee?.[a.item_id]?.ranqueamento;
+    if (_shpFiltro.chip === 'sazon') return !!_tags.shopee?.[a.item_id]?.sazonalidade;
+    return true;
+  };
+  const lista = todos.filter(passa);
+  const linhas = lista.map(a => {
+    const mc = a.margem_pct == null ? 'var(--muted2)' : (a.margem_pct < 0 ? 'var(--red)' : a.margem_pct < 10 ? 'var(--gold)' : 'var(--green)');
+    const sku = a.skus.filter(Boolean).slice(0, 2).join(', ') + (a.skus.length > 2 ? ` +${a.skus.length - 2}` : '');
+    return `<tr onclick="shpAbrir('${a.item_id}')">
+      <td><div style="display:flex;gap:10px;align-items:center"><img data-shp-foto="${a.item_id}" alt="" style="display:none;width:44px;height:44px;object-fit:contain;border-radius:6px;flex:none"/><div><div style="font-weight:600;line-height:1.3">${sacEsc((a.nome || '').slice(0, 70))}</div><div class="modal-sku">${sacEsc(sku)} · ${a.item_id}</div><span data-tagtable="${a.item_id}">${renderTagsLinha('shopee', a.item_id)}</span></div></div></td>
+      <td>${brl2(a.receita)}</td><td>${r(a.unid)}</td><td>${brl2(a.ads)}</td><td>${a.tacos != null ? pct1(a.tacos) : '—'}</td>
+      <td style="color:${mc}">${a.sem_cmv ? '<span class="pos-badge none">sem CMV</span> ' : ''}${brl2(a.margem_pos_ads)}</td>
+      <td style="color:${mc}">${a.margem_pct != null ? shpPc(a.margem_pct) : '—'}</td><td>${shpPosBadge(a.item_id)}</td></tr>`;
+  }).join('');
+  const tb = document.getElementById('shpTbody'); if (tb) tb.innerHTML = linhas || '<tr><td colspan="8" class="sac-mut" style="padding:14px">Nenhum anúncio com este filtro.</td></tr>';
+  const c = document.getElementById('shpcont'); if (c) c.textContent = `${lista.length} de ${todos.length} anúncios`;
+  shpFotosTabela();
+}
+async function shpFotosTabela() {
+  const imgs = [...document.querySelectorAll('#shpTbody img[data-shp-foto]')];
+  const falta = [...new Set(imgs.map(i => i.dataset.shpFoto).filter(id => !(id in SHP.fotos)))];
+  for (let i = 0; i < falta.length; i += 50) {
+    try {
+      const f = await (await fetch(`${API}/shopee/painel/fotos?ids=${falta.slice(i, i + 50).join(',')}`)).json();
+      falta.slice(i, i + 50).forEach(id => { SHP.fotos[id] = f[id] || null; });
+    } catch (e) { break; }
+    document.querySelectorAll('#shpTbody img[data-shp-foto]').forEach(im => { const u = SHP.fotos[im.dataset.shpFoto]; if (u && !im.getAttribute('src')) { im.src = u; im.style.display = ''; } });
+  }
+  imgs.forEach(im => { const u = SHP.fotos[im.dataset.shpFoto]; if (u && !im.getAttribute('src')) { im.src = u; im.style.display = ''; } });
+}
+async function shpAtualizar() {
+  try { await fetch(`${API}/shopee/painel/sincronizar?dias=${SHP.dias}`, {method: 'POST'}); } catch (e) { toast('Erro ao iniciar a atualização', 'error'); return; }
+  toast('Atualização iniciada: leva alguns minutos'); shpAcompanhar();
+}
+function shpAcompanhar() {
+  if (SHP.timer) return;
+  const ic = document.getElementById('shpi');
+  SHP.timer = setInterval(async () => {
+    try {
+      const e = await (await fetch(`${API}/shopee/painel/status`)).json();
+      const st = document.getElementById('shps');
+      if (e.rodando) { if (ic) ic.className = 'spin'; if (st) st.textContent = `${e.fase || 'atualizando'} ${e.feito || 0}/${e.total || 0}`; return; }
+      clearInterval(SHP.timer); SHP.timer = null; if (ic) { ic.className = ''; ic.textContent = '↻'; }
+      if (e.erro) { if (st) st.textContent = 'falhou: ' + e.erro; toast('Falha ao atualizar a Shopee', 'error'); } else { toast('Dados da Shopee atualizados'); shpCarregar(); }
+    } catch (x) {}
+  }, 4000);
+}
+
+// ── Modal do anúncio (mesmo layout do anúncio do ML) ──
+function shpFechar() { document.getElementById('modal-shp').classList.remove('open'); _shp = null; _mapa = null; }
+document.getElementById('modal-shp').addEventListener('click', function (e) { if (e.target === this) shpFechar(); });
+async function shpAbrir(id) {
+  _shp = {id: String(id), dias: 7, d: null};
+  document.getElementById('shp-title').textContent = 'Carregando anúncio…';
+  document.getElementById('shp-sku').textContent = ''; document.getElementById('shp-iid').textContent = id;
+  document.getElementById('shp-avisos').innerHTML = ''; document.getElementById('shp-strip').innerHTML = '';
+  document.getElementById('shp-foto').style.display = 'none';
+  document.getElementById('shp-body').innerHTML = '<div class="sac-mut">Carregando… (a primeira vez leva alguns segundos)</div>';
+  document.getElementById('shp-tags').innerHTML = '';
+  document.getElementById('modal-shp').classList.add('open');
+  if (_tags.shopee) mostrarTagsModal('shopee', String(id), 'shp-tags'); else tagsCarregar('shopee');
+  shpPosCarregar(String(id));
+  shpModalPeriodo(7, document.getElementById('shpp-7'));
+}
+async function shpPosCarregar(id) {
+  const box = document.getElementById('shp-pos'); box.innerHTML = '';
+  let pos = {};
+  try { pos = ((await (await fetch(`${API}/posicoes/shopee`)).json()).posicoes || {})[id] || {}; } catch (e) {}
+  if (!_shp || _shp.id !== id) return;
+  box.innerHTML = `<span>Posição do anúncio: <b id="shppos-txt" style="color:var(--text)">${pos.posicao ? `p${pos.pagina || 1} #${pos.posicao}` : 'Sem registro'}</b></span>
+    <input type="number" id="shppos-pag" value="${pos.pagina || 1}" min="1" max="99999" style="width:72px" title="Página"/>
+    <input type="number" id="shppos-num" value="${pos.posicao || ''}" min="1" max="999999" style="width:84px" placeholder="Posição" title="Posição"/>
+    <input type="text" id="shppos-kw" value="${sacEsc(pos.keyword || '')}" placeholder="Palavra-chave" style="flex:1;min-width:0"/>
+    <button class="btn-sm" onclick="salvarPosicao(_shp.id,'shopee','shppos');SHP.pos[_shp.id]={pagina:+document.getElementById('shppos-pag').value||1,posicao:+document.getElementById('shppos-num').value||0}">Salvar</button>
+    <div class="sac-mut" style="font-size:11px;width:100%">A Shopee não tem API de posição de busca: o registro é manual.</div>`;
+}
+function shpIso(d) { return d.toISOString().split('T')[0]; }
+function shpModalPeriodo(dias, btn) {
+  document.querySelectorAll('#modal-shp .modal-preset').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('shp-datas').style.display = dias === 0 ? 'inline-flex' : 'none';
+  if (dias === 0) return;
+  const f = amzFechado(dias);
+  document.getElementById('shp-de').value = f.de; document.getElementById('shp-ate').value = f.ate;
+  shpModalBuscar();
+}
+function shpModalDia(n, btn) {
+  document.querySelectorAll('#modal-shp .modal-preset').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  const dia = diaBRT(n);
+  document.getElementById('shp-de').value = dia; document.getElementById('shp-ate').value = dia;
+  shpModalBuscar();
+}
+async function shpModalBuscar() {
+  if (!_shp) return;
+  const id = _shp.id, de = document.getElementById('shp-de').value, ate = document.getElementById('shp-ate').value;
+  if (!de || !ate) { toast('Informe as duas datas', 'error'); return; }
+  try {
+    const r = await fetch(`${API}/shopee/painel/anuncio/${id}?de=${de}&ate=${ate}`);
+    const d = await r.json(); if (!r.ok) throw new Error(d.detail || r.status);
+    if (!_shp || _shp.id !== id) return;
+    if (d.erro) { document.getElementById('shp-body').innerHTML = `<div class="sac-mut">${sacEsc(d.erro)}</div>`; return; }
+    _shp.d = d; shpDesenharModal(d);
+  } catch (e) { document.getElementById('shp-body').innerHTML = `<div class="sac-mut">Erro: ${sacEsc(e.message)}</div>`; }
+}
+const SHP_AV = {critico: 'shp-critico', atencao: 'shp-atencao', info: 'shp-info'};
+function shpDestaqueAviso(dz) {
+  const est = dz.estado, dd = dz.desativacao || {}, ul = dz.ultima_loja, ulT = ul ? `${mxDmy(ul.dia)} ${ul.hora}` : '';
+  const tx = dz.taxa ? shpFr(dz.taxa) : '';
+  let nivel = 'info', t = '';
+  if (est === 'ativa') { nivel = 'atencao'; t = `ativa · taxa ${tx}${dz.desde ? ' desde ' + mxDmy(dz.desde) : ''}`; }
+  else if (est === 'ativa_aguardando') { nivel = 'atencao'; t = `ativa · taxa ${tx} · desativação pedida em ${mxDmy(dd.solicitada_em)}, efeito previsto ${mxDmy(dd.efeito_previsto)}`; }
+  else if (est === 'cobrando_apos_previsto') { nivel = 'critico'; t = `ainda cobrada ${dz.dias_estado || 0} dia(s) após o previsto (${mxDmy(dd.efeito_previsto)})`; }
+  else if (est === 'desativada') { t = 'desativada · última venda sem a taxa'; }
+  else { t = 'não ativa · última venda sem a taxa'; }
+  return `<span class="mx-aviso ${SHP_AV[nivel]}" title="${sacEsc('Pela cobrança da última venda ' + (ul ? '(pedido ' + ul.order_sn + ', ' + ulT + ')' : '') + '. A Shopee não informa a inscrição por API.')}">Campanha Destaque: ${sacEsc(t)}</span>`;
+}
+function shpDesenharModal(d) {
+  const it = d.item, A = d.A, B = d.B, p30 = d.p30, sim = d.sim, dz = d.destaque || {};
+  document.getElementById('shp-title').textContent = it.titulo || d.sku;
+  document.getElementById('shp-sku').textContent = d.sku;
+  document.getElementById('shp-iid').textContent = it.item_id;
+  const im = document.getElementById('shp-foto');
+  if (it.foto) { im.src = it.foto; im.style.display = ''; } else im.style.display = 'none';
+  const bl = document.getElementById('shp-btn-link'); bl.onclick = () => abrirLink(d.link, 'shopee');
+  // avisos: Full (SBS), Destaque, avisos do anúncio e PIVO da Shopee (calculado pelo catálogo)
+  let fullH = '';
+  if (d.full) {
+    const cob = d.full.cobertura, nivel = cob == null ? 'ok' : cob < 10 ? 'critico' : cob < 15 ? 'atencao' : 'ok';
+    const tip = `Vendável ${d.full.vendavel} · a caminho ${d.full.a_caminho} · reservado ${d.full.reservado} · não apto ${d.full.nao_apto} · velocidade 60% 7d + 40% 30d: ${shpN(d.full.vel_nossa, 2)} un/dia · meta ${d.full.meta_dias} dias`;
+    fullH = `<span class="mx-aviso full-${nivel}" title="${sacEsc(tip)}">Full ${r(d.full.vendavel + d.full.a_caminho)} un${cob != null ? ' · estoque para ' + shpN(cob, 1) + ' dias' : ''}</span>`;
+  }
+  const avs = (d.avisos || []).map(a => `<span class="mx-aviso ${SHP_AV[a.nivel] || 'shp-info'}">${sacEsc(a.texto)}</span>`).join('');
+  const pv = d.pivo;
+  const letras = pv.grupos.map(g => `<span class="pivo-l lg ${g.ok ? 'on-' + g.id : ''}" title="${sacEsc(g.nome + '\n' + g.partes.map(p => (p.ok ? '[ok] ' : '[falta] ') + p.nome + ': ' + p.detalhe).join('\n'))}">${g.id}</span>`).join('');
+  const pivoH = `<span class="mx-pivo" title="${sacEsc(pv.passa ? 'Passa no PIVO' : 'Atenção:\n' + pv.atencao.join('\n'))}"><span class="t">PIVO</span>${letras}<span class="n ${pv.passa ? 'ok' : 'atencao'}">${pv.passa ? 'completo' : 'atenção · ' + pv.pontos + '/' + pv.total}</span></span>`;
+  document.getElementById('shp-avisos').innerHTML = fullH + shpDestaqueAviso(dz) + avs + pivoH;
+  // faixa fixa de 30 dias
+  const orgs = Math.max(0, p30.unidades - p30.vads), roasObj = sim.roas_objetivo;
+  const K = [['Vendas por ADS (ped.)', r(p30.vads)], ['Vendas orgânicas', p30.unidades >= p30.vads ? r(orgs) : '—'], ['Receita por ADS', brl2(p30.receita_publi)], ['Investimento', brl2(p30.ads_total)],
+    ['ACOS', p30.receita_publi > 0 ? pct2(p30.ads_total / p30.receita_publi) : '—'], ['TACOS', p30.receita > 0 ? pct2(p30.tacos) : '—'], ['ROAS', p30.ads_total > 0 ? _dec2(p30.roas) : '—'], ['ROAS objetivo', roasObj > 0 ? _dec2(roasObj) : '—']];
+  document.getElementById('shp-strip').style.setProperty('--cols', 8);
+  document.getElementById('shp-strip').innerHTML = K.map(k => `<div class="mx-kpi"><div class="mx-kpi-l">${k[0]}</div><div class="mx-kpi-v">${k[1]}</div></div>`).join('');
+  const rot = k => `${mxDmy(d.rot[k][0])} a ${mxDmy(d.rot[k][1])}`;
+  // ADS: a tabela compartilhada do Meli (Atual, P2, P3, P4 e o seletor de colunas)
+  _adsDiaModo = false; _adsDia = null;
+  _adsCtx = {A, B, rotA: rot('A'), rotB: rot('B'), extras: [{o: d.P3, rot: rot('P3')}, {o: d.P4, rot: rot('P4')}], todas: adsTodas()};
+  const camps = d.campanhas || [], ativas = camps.filter(c => c.status === 'ongoing');
+  const campH = camps.length ? `${ativas.length} campanha(s) ativa(s) de ${camps.length}: ` + camps.slice(0, 6).map(c => `${sacEsc(c.status)} · orçamento ${brl2(c.orcamento)}${c.roas_alvo ? ' · ROAS alvo ' + _dec2(c.roas_alvo) : ''}`).join(' | ') : 'Sem campanhas de Ads neste anúncio.';
+  const VCOLS = [{k: 'media_dia', l: 'Média diária (un.)', f: _dec2}, {k: 'unidades', l: 'Unidades', f: v => r(v)}, {k: 'visitas', l: 'Visitas', f: v => r(v)}, {k: 'conv_c', l: 'Conversão', f: pct2},
+    {k: 'receita', l: 'Receita (R$)', f: _mil}, {k: 'preco_c', l: 'Preço médio', f: _mil}, {k: 'pedidos', l: 'Pedidos', f: v => r(v)}];
+  const mg = A.margem || {}, mgB = B.margem || {};
+  const mgLinha = `Margem de contribuição (pelas tarifas do escrow): <b>${mg.margem != null ? brl2(mg.margem) + ' · ' + pct2(mg.margem_pct) : '— (sem CMV na base ou sem escrow)'}</b> no período atual; anterior: ${mgB.margem != null ? brl2(mgB.margem) + ' · ' + pct2(mgB.margem_pct) : '—'}${mg.pedidos_sem_escrow ? ' · ' + mg.pedidos_sem_escrow + ' pedido(s) sem escrow' : ''}`;
+  const visNota = d.retratos ? `Visitas: a Shopee só informa o total acumulado de visualizações; o painel guarda um retrato por dia (primeiro em ${mxDmy(d.visitas_desde)}). Períodos anteriores a isso ficam em —.` : 'Visitas: ainda sem retrato diário; rode a sincronização.';
+  // simulador (mesma estrutura do simulador do Meli)
+  const fld = (l, id, v) => `<div class="sim-field"><label>${l}</label><input type="number" id="${id}" value="${v}" step="0.01" oninput="shpCalc()" onblur="fmt2(this)"/></div>`;
+  const colSim = `<aside class="mx-card2 mx-sim"><h4>Simulação do cenário</h4>
+        <div class="sim-grid">
+          ${fld('Preço simulado (R$)', 'ss-preco', sim.preco.toFixed(2))}
+          ${fld('CMV (R$)', 'ss-cmv', (sim.cmv == null ? 0 : sim.cmv).toFixed(2))}
+          ${fld('Imposto (%)', 'ss-imp', (sim.imposto_pct * 100).toFixed(2))}
+          ${fld('Comissão total (%)', 'ss-com', (sim.comissao_pct * 100).toFixed(2))}
+          ${fld('Taxa fixa por item (R$)', 'ss-fixo', sim.fixo.toFixed(2))}
+          <div class="sim-field"><label>Campanha Destaque (%)</label><div style="display:flex;gap:6px;align-items:center"><input type="number" id="ss-dest" value="${(sim.destaque_pct * 100).toFixed(2)}" step="0.01" oninput="shpCalc()" style="min-width:0"/><label style="white-space:nowrap;margin:0;font-size:10px"><input type="checkbox" id="ss-dest-on" ${dz.ativa ? 'checked' : ''} onchange="shpCalc()" style="width:auto;height:auto"/> participa</label></div></div>
+          ${fld('Outras taxas de serviço (R$/un)', 'ss-outras', sim.outras_un.toFixed(2))}
+          ${fld('Frete do vendedor (R$)', 'ss-frete', sim.frete.toFixed(2))}
+          ${fld('Taxas extras (R$/un)', 'ss-ext', sim.extras.toFixed(2))}
+          ${fld('Cupom do vendedor (R$/un)', 'ss-cup', sim.cupom.toFixed(2))}
+          ${fld('TACOS 30 dias (%)', 'ss-tacos', (sim.tacos30 * 100).toFixed(2))}
+        </div>
+        ${sim.cmv == null ? '<div class="mx-sim-info" style="margin-top:8px;color:var(--red)">SKU sem CMV na base do Grupo: informe o CMV manualmente.</div>' : ''}
+        <div id="shp-sim-out" class="mx-sim-out"></div>
+        <div class="mx-sim-info" style="margin-top:8px">Base: ${sacEsc(sim.origem)}. Comissão total = comissão + 1,4% que a Shopee lança na taxa de serviço (20% no total). Desmarque "participa" para simular o anúncio fora da campanha Destaque.</div>
+        <div class="mx-sim-act"><a onclick="shpUsarMedias()">Usar médias do período</a> · <a onclick="shpUsarUltima()">Usar valores da última venda</a></div>
+      </aside>`;
+  // DRE do anúncio (cancelados, não pagos, devoluções e reembolsos separados)
+  const dreCard = shpDre(d);
+  // Full (SBS)
+  const f = d.full;
+  const fullCard = f ? `<section class="mx-card2"><h4>Full (SBS)<small>meta ${f.meta_dias} dias · velocidade 60% 7d + 40% 30d${f.ruptura_provavel ? ' · ⚠ provável ruptura: média de 120 dias ' + shpN(f.media_120d, 2) + '/dia' : ''}</small></h4>
+      ${[['Vendável', r(f.vendavel)], ['Reservado', r(f.reservado)], ['Não apto', r(f.nao_apto)], ['A caminho (inclui aguardando ASN)', r(f.a_caminho)], ['Cobertura', f.cobertura == null ? '—' : shpN(f.cobertura, 1) + ' dias'], ['Velocidade nossa / Shopee', shpN(f.vel_nossa, 2) + ' / ' + shpN(f.vel_shopee, 2) + ' un/dia'], ['Enviar ao Full (para ' + f.meta_dias + ' dias)', '<b>' + r(f.sugestao) + '</b>']].map(x => `<div class="mx-row"><span class="mx-lbl">${x[0]}</span><span class="mx-val">${x[1]}</span></div>`).join('')}
+      <div class="sac-mut" style="font-size:11px;margin-top:6px">Vendas Shopee: 7d ${r(f.v7)} · 15d ${r(f.v15)} · 30d ${r(f.v30)} · 60d ${r(f.v60)} · 90d ${r(f.v90)}. Criar e agendar a entrada no Full é manual no Seller Centre (não há API).</div></section>` : '';
+  document.getElementById('shp-body').innerHTML = `
+    <div class="mx-main">
+      <div class="mx-left">
+        <section class="mx-card2"><h4>Dados de ADS${adsBotao()}</h4><div id="ads-tab">${adsTabela()}</div>
+          <div class="sac-mut" style="font-size:11px;margin-top:6px">${campH}</div></section>
+        <section class="mx-card2"><h4>Dados de vendas</h4>${mxTabela(VCOLS, A, B, rot('A'), rot('B'), null, [{o: d.P3, rot: rot('P3')}, {o: d.P4, rot: rot('P4')}])}
+          <div class="sac-mut" style="font-size:11px;margin-top:6px">${visNota}</div><div class="sac-mut" style="font-size:11px;margin-top:6px">${mgLinha}</div></section>
+        ${dreCard}${fullCard}
+      </div>
+      ${colSim}
+    </div>
+    ${mapaHtml('Mapa de alterações')}`;
+  _mapa = {conta: 'shopee', chave: String(it.item_id), snapshot: () => ({
+    periodo: d.periodo, preco_medio: A.preco_c, margem_pct: mg.margem_pct, tacos: A.tacos, roas: A.roas, unidades: A.unidades, visitas: A.visitas, conversao: A.conv_c, receita: A.receita})};
+  shpCalc(); mapaCarregar();
+}
+function shpDre(d) {
+  const a = d.A.dre, b = d.B.dre; if (!a) return '';
+  const L = [['Pedidos feitos a preço cheio', 'cheio', 0, 0], ['(−) Descontos do vendedor', 'desconto', 1, 0], ['= Pedidos feitos (valor de venda)', 'feitos', 0, 1],
+    ['(−) Não pagos (cancelamento automático)', 'nao_pagos', 1, 0, 'nao_pago'], ['(−) Cancelados', 'cancelados', 1, 0, 'cancelado'], ['(−) Em devolução (a caminho)', 'em_devolucao', 1, 0, 'devolucao'], ['(−) Reembolsados (devolução processada)', 'reembolsados', 1, 0],
+    ['= Vendas válidas', 'validas', 0, 1], ['(−) Cupom do vendedor', 'cupom', 1, 0], ['(−) Pedidos sem tarifa carregada', 'sem_escrow', 1, 0], ['= Receita líquida', 'receita_liquida', 0, 1],
+    ['(−) Comissão', 'comissao', 1, 0], ['(−) Comissão lançada na taxa de serviço', 'comissao_extra', 1, 0], ['(−) Taxa fixa por item', 'fixo', 1, 0], ['(−) Campanha Destaque', 'destaque', 1, 0],
+    ['(−) Outras tarifas de serviço e ajuste de parcelamento', '_outras', 1, 0], ['(−) Frete do vendedor', 'frete', 1, 0], ['(−) Taxas extras', 'extras', 1, 0], ['(−) Imposto', 'imposto', 1, 0], ['(−) CMV', 'cmv', 1, 0],
+    ['= Margem de contribuição', 'margem', 0, 1], ['(−) Ads (gasto real das campanhas do anúncio)', 'ads', 1, 0], ['= Margem após Ads', 'margem_apos_ads', 0, 1]];
+  const val = (x, k) => k === '_outras' ? (x.outras || 0) + (x.servico_ajuste || 0) : x[k];
+  let topo = true, h = '';
+  for (const l of L) {
+    const k = l[1], va = val(a, k), vb = val(b, k);
+    if ((k === 'sem_escrow' || k === 'reembolsados' || k === 'cupom' || k === 'extras') && !va && !vb) continue;
+    if (k === 'receita_liquida') topo = false;
+    const base = topo ? a.feitos : a.receita_liquida, sinal = l[2] ? -1 : 1;
+    const qn = l[4] && a.n ? ` <span class="sac-mut">(${r(a.n[l[4]])} ped.)</span>` : '';
+    const pa = (va != null && base) ? shpPc(Math.abs(va) < 0.005 ? 0 : va / base * 100) : '—';
+    const dlt = (va != null && vb != null && vb) ? mxVar(va, vb, l[2] ? 1 : 0, 0) : '—';
+    const neg = (k === 'margem' || k === 'margem_apos_ads') && va != null && va < 0;
+    h += `<tr${l[3] ? ' style="font-weight:700"' : ''}><td>${l[0]}${qn}</td><td style="text-align:right;${neg ? 'color:var(--red)' : ''}">${va == null ? '—' : shpRs(Math.abs(va) < 0.005 ? 0 : sinal * va)}</td><td style="text-align:right">${pa}</td><td style="text-align:right">${vb == null ? '—' : shpRs(Math.abs(vb) < 0.005 ? 0 : sinal * vb)}</td><td style="text-align:right">${dlt}</td></tr>`;
+  }
+  return `<section class="mx-card2"><h4>DRE do anúncio<small>${mxDmy(d.rot.A[0])} a ${mxDmy(d.rot.A[1])} · comparado a ${mxDmy(d.rot.B[0])} a ${mxDmy(d.rot.B[1])}</small></h4>
+    <table class="tbl"><thead><tr><th>Linha</th><th>Atual</th><th title="Até Vendas válidas: % dos pedidos feitos. Daí em diante: % da receita líquida.">%</th><th>P2</th><th>Variação</th></tr></thead><tbody>${h}</tbody></table>
+    <div class="sac-mut" style="font-size:11px;margin-top:6px">% das linhas até "Vendas válidas" é sobre os pedidos feitos; depois, sobre a receita líquida. Cancelados, não pagos e reembolsados não geram tarifa (o escrow vem zerado): entram só como dedução da receita. Ads é o gasto real das campanhas deste anúncio.${a.sem_cmv ? ' SKU sem CMV na base do Grupo: margem não calculada.' : ''}</div></section>`;
+}
+function shpNum(id) { const v = parseFloat(document.getElementById(id)?.value); return isNaN(v) ? 0 : v; }
+function shpCalc() {
+  const p = shpNum('ss-preco'), cmv = shpNum('ss-cmv'), imp = shpNum('ss-imp') / 100, com = shpNum('ss-com') / 100, fixo = shpNum('ss-fixo');
+  const dest = (document.getElementById('ss-dest-on')?.checked ? shpNum('ss-dest') : 0) / 100, outras = shpNum('ss-outras'), fr = shpNum('ss-frete'), ex = shpNum('ss-ext'), cup = shpNum('ss-cup'), tc = shpNum('ss-tacos') / 100;
+  const taxas = p * com + fixo + p * dest + outras;
+  const antes = p - cup - cmv - p * imp - taxas - fr - ex, res = antes - p * tc, mp = p > 0 ? res / p : 0, mAntes = p > 0 ? antes / p : 0;
+  const be = mAntes > 0 ? 1 / mAntes : null, cor = res < 0 ? 'var(--red)' : 'var(--green)';
+  const el = document.getElementById('shp-sim-out'); if (!el) return;
+  el.innerHTML = `<div class="mx-row"><span class="mx-lbl">Resultado unitário</span><span class="mx-val" style="color:${cor}">${brl2(res)}</span></div>
+    <div class="mx-row"><span class="mx-lbl">Margem simulada</span><span class="mx-val" style="color:${cor}">${pct2(mp)}</span></div>
+    <div class="mx-row"><span class="mx-lbl">Margem antes do Ads</span><span class="mx-val">${brl2(antes)} · ${pct2(mAntes)}</span></div>
+    <div class="mx-row"><span class="mx-lbl">ROAS de equilíbrio</span><span class="mx-val">${be ? _dec2(be) : '—'}</span></div>
+    <div class="mx-row"><span class="mx-lbl">TACOS máximo (margem zero)</span><span class="mx-val">${pct2(mAntes)}</span></div>
+    <div class="mx-row"><span class="mx-lbl">Tarifas da Shopee</span><span class="mx-val">${brl2(taxas)} · ${pct2(p > 0 ? taxas / p : 0)} do preço</span></div>`;
+}
+function shpSet(m) { Object.keys(m).forEach(k => { const e = document.getElementById(k); if (e) e.value = m[k]; }); const cb = document.getElementById('ss-dest-on'); if (cb && _shp?.d?.destaque) cb.checked = !!_shp.d.destaque.ativa; shpCalc(); }
+function shpUsarUltima() {
+  const s = _shp?.d?.sim; if (!s) return;
+  shpSet({'ss-preco': s.preco.toFixed(2), 'ss-cmv': (s.cmv == null ? 0 : s.cmv).toFixed(2), 'ss-imp': (s.imposto_pct * 100).toFixed(2), 'ss-com': (s.comissao_pct * 100).toFixed(2), 'ss-fixo': s.fixo.toFixed(2),
+    'ss-dest': (s.destaque_pct * 100).toFixed(2), 'ss-outras': s.outras_un.toFixed(2), 'ss-frete': s.frete.toFixed(2), 'ss-ext': s.extras.toFixed(2), 'ss-cup': s.cupom.toFixed(2), 'ss-tacos': (s.tacos30 * 100).toFixed(2)});
+}
+function shpUsarMedias() {
+  const d = _shp?.d; if (!d) return;
+  const m = d.A.margem || {}, u = m.unid || 0, rc = m.receita || 0;
+  if (!(u > 0 && rc > 0)) { toast('Sem vendas com escrow no período para calcular médias', 'error'); return; }
+  shpSet({'ss-preco': (rc / u).toFixed(2), 'ss-cmv': (m.cmv / u).toFixed(2), 'ss-imp': (m.imposto / rc * 100).toFixed(2), 'ss-com': (m.comissao / rc * 100).toFixed(2), 'ss-fixo': '0.00', 'ss-dest': '0.00',
+    'ss-outras': (m.servico / u).toFixed(2), 'ss-frete': (m.frete / u).toFixed(2), 'ss-ext': (m.extras / u).toFixed(2), 'ss-tacos': (d.p30.tacos * 100).toFixed(2)});
 }
 
 // ── SAC: pendências e contestações (somente leitura) ──────────────────────

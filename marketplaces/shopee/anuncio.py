@@ -193,6 +193,21 @@ def _catalogo(sid, item_id):
     return painel._vivo(f"cat{item_id}", buscar, 900)
 
 
+def fotos(item_ids, loja="techseller"):
+    """Foto de capa de vários anúncios (lotes de 50 em get_item_base_info), com cache de 1 hora: {item_id: url}."""
+    sid = lojas.shop_id_da(loja)
+    ids = [int(i) for i in item_ids if str(i).isdigit()]
+    saida = {}
+    for k in range(0, len(ids), 50):
+        lote = ids[k:k + 50]
+
+        def buscar(lote=lote):
+            r = api.chamar("/api/v2/product/get_item_base_info", sid, {"item_id_list": ",".join(str(i) for i in lote), "need_complaint_policy": "false"})
+            return {str(it.get("item_id")): ((it.get("image") or {}).get("image_url_list") or [None])[0] for it in (r.get("response") or {}).get("item_list", [])}
+        saida.update(painel._vivo("fotos" + ",".join(str(i) for i in lote), buscar, 3600))
+    return saida
+
+
 # ─── agregações ──────────────────────────────────────────────────────────────
 
 def _pedidos_item(c, item_id, desde_ts):
