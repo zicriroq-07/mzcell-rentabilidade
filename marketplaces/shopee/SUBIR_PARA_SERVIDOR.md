@@ -43,3 +43,9 @@ Validar: `.\venv\Scripts\python.exe -m marketplaces.shopee.validar` deve mostrar
 - No computador de desenvolvimento (LAPTOP-ZICRI) parar o servidor de teste da Shopee e **não usar mais o `.shopee_tokens.json` de lá**.
 - Opcional: gerar uma Partner Key nova no open.shopee e atualizar só o `shopee.env` do servidor (a key passou pela conversa).
 - Tarifas e como ler o escrow: `marketplaces/shopee/TARIFAS.md`. Modal e plano de Full: `marketplaces/shopee/anuncio.py` e `painel.py`.
+
+## 6. O que mais vai junto neste pull (já validado no clone `C:\mz-clone`)
+- **Aba Shopee nativa no dashboard** (lista + modal iguais ao Meli; cards DRE e Full desligados por `SHP_CARD_DRE`/`SHP_CARD_FULL`). Estoque do Bling ao lado do Full (Shopee usa o bling01; tooltip com os demais).
+- **Expedição** atualiza ML e checkout do Bling a cada 30 s (Amazon 60 s pelo limite da SP-API).
+- **Banco dos agendamentos de Full** (`full_agendamentos.db`, criado sozinho ao lado do `montagem_envios.json`, fora do git): `/montagem/historico`, `/montagem/historico/{chave}/eventos`, `/montagem/programado`. Na primeira subida, `historico.carregar_do_arquivo()` importa os envios que já estão na fila.
+- Vendas orgânicas da Shopee seguem a regra do Meli (unidades pagas sem cancelados menos as atribuídas a Ads).
