@@ -102,7 +102,7 @@ def _carregar(conta_bling: str) -> dict:
                 saldos[k] = dep.get("saldoFisico") or 0
                 virtuais[k] = dep.get("saldoVirtual") or 0   # físico menos o reservado por pedidos em aberto
     pais = {k: True for k in pais}  # só marca; as variações são sugeridas pelo prefixo do SKU, sem uma consulta por produto
-    return {"saldos": saldos, "pais": pais, "virtuais": virtuais}
+    return {"saldos": saldos, "pais": pais, "virtuais": virtuais, "ids": produtos}   # ids: SKU -> id do produto, para a leitura viva por SKU
 
 
 _renovando = set()
@@ -143,6 +143,61 @@ def saldos(conta_bling: str, forcar: bool = False) -> dict:
         _falha.pop(conta_bling, None)
         _salvar_disco()
         return dados
+
+
+_geral_id = {}      # bling -> id do depósito Geral
+_vivo_ts = {}       # (bling, SKU) -> quando o saldo foi lido ao vivo
+VIVO_SEG = 20       # não repete a leitura do mesmo SKU antes disso (vários usuários e telas na mesma janela)
+VIVO_MAX = 200      # SKUs por pedido
+
+
+def vivo(conta: str, skus) -> dict:
+    """Saldo quase em tempo real só dos SKUs pedidos (os que estão na tela), nos três Blings: 1 consulta de até 100 produtos por Bling.
+    Atualiza o saldo guardado em memória; a varredura completa continua renovando o catálogo a cada CACHE_SEG.
+    Somente leitura. Devolve {SKU: [saldo no Bling da conta, {outro bling: saldo}]} e os erros por Bling."""
+    principal = BLING_DA_CONTA[conta]
+    outros = [b for b in BLINGS if b != principal]
+    skus = list(dict.fromkeys(chave(x) for x in skus if chave(x)))[:VIVO_MAX]
+    erros, lidos = {}, 0
+    agora = time.time()
+    for b in [principal] + outros:
+        c = _cache.get(b)
+        ids = (c[1].get("ids") if c else None)
+        if not ids:
+            erros[b] = "catálogo ainda sem ids (a varredura completa vai preencher)"
+            if c and b not in _renovando:
+                _renovando.add(b)
+                threading.Thread(target=_renovar_fundo, args=(b,), daemon=True).start()
+            continue
+        pedir = [k for k in skus if k in ids and agora - _vivo_ts.get((b, k), 0) >= VIVO_SEG and k not in c[1].get("pais", {})]
+        if not pedir:
+            continue
+        try:
+            if b not in _geral_id:
+                _geral_id[b] = _deposito_geral(b)
+            geral = _geral_id[b]
+            sku_do_id = {ids[k]: k for k in pedir}
+            for i in range(0, len(pedir), 100):
+                lote = [ids[k] for k in pedir[i:i + 100]]
+                st, r = api.get(b, "/estoques/saldos", **{"idsProdutos[]": lote})
+                if st != 200:
+                    raise RuntimeError(f"saldos HTTP {st}")
+                for x in r.get("data", []):
+                    k = sku_do_id.get(x["produto"]["id"])
+                    if k is None:
+                        continue
+                    dep = next((d for d in x.get("depositos", []) if d.get("id") == geral), {})
+                    c[1]["saldos"][k] = dep.get("saldoFisico") or 0
+                    c[1].setdefault("virtuais", {})[k] = dep.get("saldoVirtual") or 0
+                    _vivo_ts[(b, k)] = agora
+                    lidos += 1
+        except Exception as e:
+            erros[b] = f"{type(e).__name__}: {str(e)[:100]}"
+    itens = {}
+    for k in skus:
+        sp = (_cache.get(principal) or (0, {"saldos": {}}))[1]["saldos"]
+        itens[k] = [sp.get(k), {b: _cache[b][1]["saldos"][k] for b in outros if b in _cache and k in _cache[b][1]["saldos"]}]
+    return {"itens": itens, "lidos": lidos, "erros": erros, "em": datetime.now().isoformat(timespec="seconds")}
 
 
 def estado() -> dict:

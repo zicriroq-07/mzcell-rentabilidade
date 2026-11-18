@@ -3852,6 +3852,32 @@ async function blingEstadoCarregar() {
 }
 setTimeout(blingEstadoCarregar, 4000);
 setInterval(blingEstadoCarregar, 300000);
+// ── Saldo do Bling quase em tempo real (30 s): só os SKUs que estão na tela, só leitura ──
+let _blingModal = null;
+const BLING_VIVO_MS = 30000;
+async function blingVivoCiclo() {
+  if (document.hidden) return;
+  for (const conta of Object.keys(_blingEst)) {
+    const aba = document.getElementById('tab-' + conta);
+    if (!aba || !aba.offsetParent) continue;                       // só a aba que o usuário está vendo
+    const spans = [...aba.querySelectorAll('span[data-blingtag]')];
+    const skus = new Set(spans.map(sp => blingSkuFilho(conta, sp.dataset.blingtag, sp.dataset.blingmlb)).filter(x => String(x || '').trim() && x !== 'Sem SKU'));
+    const m = _blingModal;
+    if (m && m.conta === conta && document.getElementById(m.id)?.offsetParent) skus.add(blingSkuFilho(conta, m.sku, m.mlb));
+    const shpD = conta === 'shopee' && _shp && _shp.d && document.getElementById('modal-shp')?.classList.contains('open') ? _shp.d : null;
+    if (shpD) String(shpD.sku || '').split(',').map(x => x.trim()).filter(x => x && x.toLowerCase() !== 'sem sku').forEach(x => skus.add(x));
+    if (!skus.size) continue;
+    try {
+      const d = await (await fetch(`${API}/bling/estoque/${conta}/vivo?skus=${encodeURIComponent([...skus].join(','))}`)).json();
+      if (!d.itens || !_blingEst[conta]) continue;
+      Object.assign(_blingEst[conta].itens, d.itens);
+      spans.forEach(sp => { sp.innerHTML = renderBlingTag(conta, sp.dataset.blingtag, sp.dataset.blingmlb); });
+      if (m && m.conta === conta && document.getElementById(m.id)?.offsetParent) mostrarAvisoBling(m.conta, m.sku, m.id, m.mlb);
+      if (shpD) shpMostrarBling(shpD);
+    } catch (e) {}
+  }
+}
+setInterval(blingVivoCiclo, BLING_VIVO_MS);
 function blingInfo(conta, sku) {
   const d = _blingEst[conta], k = String(sku || '').trim().toUpperCase();
   if (!d || !k) return null;
@@ -3880,6 +3906,7 @@ function renderBlingTag(conta, sku, mlb) {
 }
 async function mostrarAvisoBling(conta, sku, id, mlb) {
   const box = document.getElementById(id); if (!box) return;
+  _blingModal = {conta, sku, id, mlb};
   box.innerHTML = '';
   if (!_blingEst[conta]) await blingCarregar(conta);
   if (document.getElementById(id) !== box || !_blingEst[conta]) return;

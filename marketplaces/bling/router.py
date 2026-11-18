@@ -26,3 +26,11 @@ def estoque_conta(conta: str, atualizar: bool = False):
     res = estoque.por_conta(conta, forcar=atualizar)
     res["filhos"] = skus_filho.por_conta(conta, forcar=atualizar) if conta.startswith("meli") else {}
     return res
+
+
+@router.get("/estoque/{conta}/vivo")
+def estoque_vivo(conta: str, skus: str = ""):
+    """Saldo quase em tempo real só dos SKUs pedidos (separados por vírgula), nos três Blings. Somente leitura."""
+    if conta not in estoque.BLING_DA_CONTA:
+        raise HTTPException(status_code=400, detail="conta inválida")
+    return estoque.vivo(conta, [x for x in skus.split(",") if x.strip()])
