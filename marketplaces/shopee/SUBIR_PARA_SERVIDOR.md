@@ -35,14 +35,21 @@ Validar: `.\venv\Scripts\python.exe -m marketplaces.shopee.validar` deve mostrar
 2. O painel só abre no navegador do próprio servidor (regra de rede): `http://127.0.0.1:8001/shopee/painel`.
 3. Primeira carga (120 dias de pedidos, ~10 a 15 min), pelo botão do painel ou por comando:
    `.\venv\Scripts\python.exe -m marketplaces.shopee.painel sincronizar 120`
-4. Agendar a sincronização diária no Agendador de Tarefas do Windows (confirmar horário com a Zicri; sugestão 06:00 e 22:00, como a carga do servidor):
+4. Sincronização diária: **não precisa de tarefa à parte**. A carga automática do servidor (`carga_servidor.py`, 6h e 22h de Brasília) já tem a etapa Shopee (30 dias, loja techseller) junto com Meli e Amazon, onde o módulo `carga_noturna` estiver aberto. Erros ficam em `carga_estado.json`. Comando manual equivalente:
    `.\venv\Scripts\python.exe -m marketplaces.shopee.painel sincronizar 30`
    Cada execução também grava o retrato diário de visualizações (a Shopee só informa o total acumulado; visitas e conversão dependem disso).
+5. Conferir a cobertura dos dados: `GET /shopee/painel/cobertura?dias=30` (campo `ok` deve ser true: sem lacunas, sem pedido sem escrow, Ads completo).
 
 ## 5. Depois de funcionar
 - No computador de desenvolvimento (LAPTOP-ZICRI) parar o servidor de teste da Shopee e **não usar mais o `.shopee_tokens.json` de lá**.
 - Opcional: gerar uma Partner Key nova no open.shopee e atualizar só o `shopee.env` do servidor (a key passou pela conversa).
 - Tarifas e como ler o escrow: `marketplaces/shopee/TARIFAS.md`. Modal e plano de Full: `marketplaces/shopee/anuncio.py` e `painel.py`.
+
+## 6. O que mais vai junto neste pull (já validado no clone `C:\mz-clone`)
+- **Aba Shopee nativa no dashboard** (lista + modal iguais ao Meli; cards DRE e Full desligados por `SHP_CARD_DRE`/`SHP_CARD_FULL`). Estoque do Bling ao lado do Full (Shopee usa o bling01; tooltip com os demais).
+- **Expedição** atualiza ML e checkout do Bling a cada 30 s (Amazon 60 s pelo limite da SP-API).
+- **Banco dos agendamentos de Full** (`full_agendamentos.db`, criado sozinho ao lado do `montagem_envios.json`, fora do git): `/montagem/historico`, `/montagem/historico/{chave}/eventos`, `/montagem/programado`. Na primeira subida, `historico.carregar_do_arquivo()` importa os envios que já estão na fila.
+- Vendas orgânicas da Shopee seguem a regra do Meli (unidades pagas sem cancelados menos as atribuídas a Ads).
 
 ## 6. O que mais vai junto neste pull (já validado no clone `C:\mz-clone`)
 - **Aba Shopee nativa no dashboard** (lista + modal iguais ao Meli; cards DRE e Full desligados por `SHP_CARD_DRE`/`SHP_CARD_FULL`). Estoque do Bling ao lado do Full (Shopee usa o bling01; tooltip com os demais).
