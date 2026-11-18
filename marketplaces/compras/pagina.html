@@ -62,6 +62,7 @@ function desenhar() {
   var av = "";
   if (d.erros && Object.keys(d.erros).length) av += '<div class="aviso">Falha ao ler o Full de: ' + esc(Object.keys(d.erros).join(", ")) + ". O resultado está incompleto.</div>";
   if (d.sem_sku && d.sem_sku.length) av += '<div class="aviso">' + d.sem_sku.length + " anúncio(s) precisam de envio mas não têm SKU: não dá para cruzar com o Bling.</div>";
+  if (d.erros_extra && Object.keys(d.erros_extra).length) av += '<div class="aviso">Sem a recomendação do ML ou os agendamentos de: ' + esc(Object.keys(d.erros_extra).join(", ")) + ".</div>";
   document.getElementById("avisos").innerHTML = av;
   var totalEnvio = d.envios.reduce(function (t, l) { return t + l.sugestao_reposicao; }, 0);
   var totalCompra = d.compras.reduce(function (t, c) { return t + c.compra; }, 0);
@@ -71,14 +72,22 @@ function desenhar() {
     '<div class="card">SKUs para comprar<b>' + d.compras.length + "</b>" + totalCompra + " un no total</div>" +
     '<div class="card">Empréstimos entre Blings<b>' + d.emprestimos.length + "</b></div>";
 
-  var h = "<h2>1. Enviar ao Full</h2><table><tr><th>Conta</th><th>SKU</th><th>Produto</th><th>Vel./dia</th><th>Estoque Full</th><th>Cobertura (dias)</th><th>Enviar</th><th>Do Bling da conta</th><th>Empréstimo de outro Bling</th><th>Sem saldo</th></tr>";
+  var h = "<h2>1. Enviar ao Full</h2><table><tr><th>Conta</th><th>SKU</th><th>Produto</th><th>Vel./dia</th><th>Estoque Full</th><th>Cobertura (dias)</th><th>Enviar</th><th>Sugestão do ML</th><th>A caminho</th><th>Do Bling da conta</th><th>Empréstimo de outro Bling</th><th>Sem saldo</th></tr>";
   d.envios.forEach(function (l) {
     var emp = Object.keys(l.emprestimo || {}).map(function (b) { return NOME[b] + ": " + l.emprestimo[b]; }).join(" · ");
     h += "<tr><td>" + esc(l.conta) + "</td><td class='sk'>" + esc(l.sku_bling || "-") + "</td><td>" + esc((l.titulo || "").slice(0, 50)) + (l.obs ? '<div class="peq">' + esc(l.obs) + "</div>" : "") + "</td>" +
-      "<td class='n'>" + dec(l.demanda_dia) + "</td><td class='n'>" + l.estoque_considerado + "</td><td class='n'>" + dec(l.cobertura_dias) + "</td><td class='n'><b>" + l.sugestao_reposicao + "</b></td>" +
+      "<td class='n'>" + dec(l.demanda_dia) + "</td><td class='n'>" + l.estoque_considerado + "</td><td class='n'>" + dec(l.cobertura_dias) + "</td><td class='n'><b>" + l.sugestao_reposicao + "</b></td>" + mlCelula(l) + caminhoCelula(l) +
       "<td class='n'>" + (l.do_bling_proprio || 0) + "</td><td>" + esc(emp) + "</td><td class='n " + (l.sem_saldo > 0 ? "verm" : "") + "'>" + (l.sem_saldo || 0) + "</td></tr>";
   });
   h += "</table>";
+
+  if (d.ml_repor_sem_nossa && d.ml_repor_sem_nossa.length) {
+    h += "<h2>1b. O ML recomenda repor e o nosso cálculo não</h2><table><tr><th>Conta</th><th>SKU</th><th>Produto</th><th>Cobertura (dias)</th><th>Sugestão do ML</th><th>Urgência</th></tr>";
+    d.ml_repor_sem_nossa.forEach(function (x) {
+      h += "<tr><td>" + esc(x.conta) + "</td><td class='sk'>" + esc(x.sku || "-") + "</td><td>" + esc((x.titulo || "").slice(0, 50)) + "</td><td class='n'>" + dec(x.cobertura_dias) + "</td><td class='n'><b>" + (x.ml.sugestao != null ? x.ml.sugestao : "?") + "</b></td><td>" + esc(URG[x.ml.urgencia] || x.ml.urgencia || "") + "</td></tr>";
+    });
+    h += "</table>";
+  }
 
   h += "<h2>2. Transferências entre Blings (empréstimo)</h2>";
   if (!d.emprestimos.length) h += '<div class="peq">Nenhuma: o Bling de cada conta cobre o envio, ou falta saldo em todos.</div>';
@@ -102,6 +111,19 @@ function desenhar() {
   document.getElementById("corpo").innerHTML = h;
 }
 
+var URG = {URGENT: "urgente", THIS_WEEK: "esta semana", NEXT_WEEK: "próxima semana", IN_TWO_WEEKS: "em 2 semanas", NO_URGENCY: "sem urgência"};
+function mlCelula(l) {
+  var m = l.ml;
+  if (!m) return "<td class='n peq'>-</td>";
+  var q = m.tipo === "REPLENISH" ? (m.sugestao != null ? m.sugestao : "?") : "não repor";
+  var tip = "Recomendação do Mercado Livre (atualiza aos domingos). Estoque total no Full: " + m.total_stock + (m.minimo_distribuivel ? " · mínimo para distribuir: " + m.minimo_distribuivel : "");
+  return "<td class='n' title='" + esc(tip) + "'><b>" + q + "</b>" + (m.urgencia ? '<div class="peq">' + (URG[m.urgencia] || m.urgencia) + "</div>" : "") + "</td>";
+}
+function caminhoCelula(l) {
+  if (!l.a_caminho) return "<td class='n peq'>-</td>";
+  var tip = "Agendado nos envios cadastrados: " + (l.agendado || 0) + " · aguardando chegada segundo o ML: " + (l.em_chegada_ml || 0) + ". Vale o maior dos dois (podem ser o mesmo envio).";
+  return "<td class='n' title='" + esc(tip) + "'>" + l.a_caminho + '<div class="peq">líquido ' + l.sugestao_liquida + "</div></td>";
+}
 function atualizar() { fetch("/compras/atualizar", {method: "POST"}).then(function () { setTimeout(carregar, 1500); }); }
 carregar();
 </script>

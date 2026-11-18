@@ -22,12 +22,15 @@ import ml_api
 import reposicao_full
 from marketplaces.balanco import catalogo
 from marketplaces.bling import estoque, skus_filho
+from marketplaces.compras import ml_reposicao
+from marketplaces.montagem import historico
 
 META_DIAS = 20
 SOBRA_PCT = 0.20
 PESOS = {7: 0.4, 30: 0.6}
 CONTAS = ["meli01", "meli02", "meli03"]
 VALIDADE_SEG = 6 * 3600
+DESCONTAR_A_CAMINHO = False   # True: o que já está a caminho do Full abate a sugestão antes de cruzar com o Bling (hoje só aparece ao lado)
 CAMINHO = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "compras_cache.json")
 _estado = {"lendo": False, "etapa": "", "erro": None}
 _trava = threading.Lock()
@@ -62,6 +65,35 @@ def _saldo_sku(sku, b, saldos, kits, cache=None):
     return max(saldos.get(b, {}).get(sku) or 0, 0)
 
 
+def _cruzar_ml_e_agendados(linhas: list) -> dict:
+    """Junta a cada estoque do Full: a recomendação do próprio ML (leitura por seller) e o que está agendado no banco de envios.
+    a_caminho = o maior entre o agendado e o que o ML mostra aguardando chegada (os dois podem ser o mesmo envio: não soma).
+    Falha de uma fonte nunca derruba a previsão: o erro volta em `erros_extra`."""
+    erros = {}
+    ml = {}
+    for c in CONTAS:
+        try:
+            ml[c] = ml_reposicao.por_conta(c)
+        except Exception as e:
+            erros[c] = f"{type(e).__name__}: {str(e)[:120]}"
+    try:
+        agendado = {x["sku"].upper(): x for x in historico.programado("meli")}
+    except Exception as e:
+        agendado = {}
+        erros["agendamentos"] = f"{type(e).__name__}: {str(e)[:120]}"
+    for l in linhas:
+        m = (ml.get(l["conta"]) or {}).get(l.get("inventory_id"))
+        l["ml"] = m
+        ag = agendado.get(estoque.chave(l.get("sku_bling")))
+        l["agendado"] = ag["unidades"] if ag else 0
+        l["agendado_envios"] = ag["envios"] if ag else []
+        chegada = max(0, (m["total_stock"] or 0) - (l.get("disponivel") or 0) - (l.get("transferencia") or 0)) if m and m.get("total_stock") is not None else 0
+        l["em_chegada_ml"] = chegada
+        l["a_caminho"] = max(l["agendado"], chegada)
+        l["sugestao_liquida"] = max(0, l["sugestao_reposicao"] - l["a_caminho"])
+    return erros
+
+
 def _montar(linhas: list) -> dict:
     saldos = {b: estoque.saldos(b)["virtuais"] for b in estoque.BLINGS}   # disponível = físico - reservas de pedidos em aberto
     kits = {b: d.get("kits", {}) for b, d in (catalogo.ler().get("blings") or {}).items()}
@@ -69,6 +101,10 @@ def _montar(linhas: list) -> dict:
     for l in linhas:
         sku = filhos.get(l["conta"], {}).get(l["mlb"]) or l.get("sku") or ""
         l["sku_bling"] = estoque.chave(sku)
+    erros_extra = _cruzar_ml_e_agendados(linhas)
+    if DESCONTAR_A_CAMINHO:
+        for l in linhas:
+            l["sugestao_bruta"], l["sugestao_reposicao"] = l["sugestao_reposicao"], l["sugestao_liquida"]
     # só quem precisa enviar entra no cálculo de saldo
     envios = [l for l in linhas if l["sugestao_reposicao"] > 0]
     envios.sort(key=lambda l: (l["cobertura_dias"] is None, l["cobertura_dias"] or 0))
@@ -111,7 +147,9 @@ def _montar(linhas: list) -> dict:
                             "faltante": faltante, "compra": compra, "contas": sorted({l["conta"] for l in ls}),
                             "componentes": [{"sku": c, "qtd": q, "compra": q * compra} for c, q in comp["comp"]] if comp and comp.get("tipo") != "F" else []})
     compras.sort(key=lambda c: -c["compra"])
-    return {"envios": envios, "compras": compras, "emprestimos": emprestimos,
+    ml_repor = [l for l in linhas if l["sugestao_reposicao"] <= 0 and (l.get("ml") or {}).get("tipo") == "REPLENISH"]
+    return {"envios": envios, "compras": compras, "emprestimos": emprestimos, "erros_extra": erros_extra,
+            "ml_repor_sem_nossa": [{"conta": l["conta"], "sku": l["sku_bling"], "titulo": l["titulo"], "ml": l["ml"], "cobertura_dias": l["cobertura_dias"]} for l in ml_repor],
             "sem_sku": [l for l in linhas if not l["sku_bling"] and l["sugestao_reposicao"] > 0]}
 
 
@@ -121,7 +159,7 @@ def _rodar():
         _estado["etapa"] = "Cruzando com o saldo do Bling"
         res = _montar(linhas)
         res.update(gerado_em=datetime.now().isoformat(timespec="seconds"), ts=time.time(), erros=erros,
-                   parametros={"meta_dias": META_DIAS, "sobra_pct": SOBRA_PCT, "pesos": {str(k): v for k, v in PESOS.items()}},
+                   parametros={"descontar_a_caminho": DESCONTAR_A_CAMINHO, "meta_dias": META_DIAS, "sobra_pct": SOBRA_PCT, "pesos": {str(k): v for k, v in PESOS.items()}},
                    total_inventarios=len(linhas))
         with open(CAMINHO, "w", encoding="utf-8") as f:
             json.dump(res, f, ensure_ascii=False, default=str)
