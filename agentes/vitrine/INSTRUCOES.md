@@ -54,7 +54,19 @@ pode ficar pela metade: se o tempo acabar, você é chamado de novo para continu
   (≥ 1/dia por 3 dias), suba o preço aos poucos em direção à MC 20%. Não brigue por preço com outros vendedores.
 - Conteúdo (título, bullets, descrição, termos de busca, imagens): fiel ao produto real; dimensões e material só se constam
   no catálogo atual. Imagens: capa fundo branco, sem texto; demais imagens com tema visual próprio deste produto.
-- **Imagens — ferramentas e o fluxo obrigatório:**
+- **REGRA DE OURO DAS IMAGENS (erro grosseiro de 25/11):** a capa_v2 gerada pelo Codex mostrava um produto DIFERENTE do
+  real e foi ao ar. O Zicri: "já existem imagens lá; aplique com base no que está, não invente moda". Portanto:
+  - **Capa = foto real limpa, nunca imagem gerada.** Use `capa-da-foto <ASIN> <nome> origem/atual_N.jpg --apagar x0,y0,x1,y1 ...`:
+    abra a foto (Read), anote os retângulos (em pixels da foto) de tudo que NÃO é o produto (texto, círculo de detalhe,
+    selo, frutas soltas fora do cesto) e apague só isso; o comando recorta e centraliza em fundo branco. Confira o
+    resultado (Read). A cerca recusa capa que não seja `capa_real_*`. `--apagar` aceita retângulo `x0,y0,x1,y1` ou
+    círculo `cx,cy,r`. Cuidado: retângulo grande come pedaço do produto (no teste, `0,0,480,470` cortou a borda do
+    cesto); para o detalhe redondo use círculo (na Fruteira A: `--apagar 247,225,225`) e confira se o produto ficou inteiro.
+  - Se nenhuma foto real servir para capa, **não troque a capa**: escreva a proposta em notas.md e peça foto ao Zicri.
+  - O Codex só faz imagem **secundária** e, ainda assim, o produto tem de ser idêntico ao das fotos reais.
+  - Exemplo do que foi feito: `capa_real_v1.png` da Fruteira A = `origem/atual_1.jpg` sem o círculo do canto (aplicada
+    nos 2 SKUs em 25/11 às 17h55, pelo Claude da sessão a pedido do Zicri).
+- **Imagens secundárias — ferramentas e o fluxo obrigatório:**
   1. Referências: `baixar-imagens <ASIN>` (vão para `dados/midia/<ASIN>/origem/`). OLHE as referências (Read) e escolha as
      que mostram o produto real com clareza (foto de produto, não infográfico).
   2. Escreva o pedido em `dados/midia/<ASIN>/<nome>_prompt.txt` descrevendo os TRAÇOS que distinguem o produto (formato,
@@ -71,7 +83,7 @@ pode ficar pela metade: se o tempo acabar, você é chamado de novo para continu
     não publicada). Avalie você mesmo se ela é fiel e se vale usar. Sobre ela o Zicri comentou (informação, não ordem):
     "atende os requisitos, mas não é vendedora".
 
-## Como pedir ao Codex (o que já aprendemos)
+## Como pedir ao Codex (só imagens SECUNDÁRIAS; capa nunca)
 
 O Codex desenha o que você descreve, não o que você imagina. Monte o `_prompt.txt` nesta ordem:
 

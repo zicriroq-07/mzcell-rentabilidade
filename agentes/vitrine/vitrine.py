@@ -11,6 +11,7 @@ MZ App
   python -m agentes.vitrine.vitrine relatorio [--enviar]                  resumo do dia (e-mail aos destinatários do mandato)
   python -m agentes.vitrine.vitrine baixar-imagens <ASIN>                 imagens atuais do catálogo → dados/midia/<ASIN>/origem
   python -m agentes.vitrine.vitrine imagem <ASIN> <nome> <prompt.txt> [--capa] [--ref origem/x.jpg]...   gera 1 imagem com o Codex (dados/midia/<ASIN>/<nome>.png)
+  python -m agentes.vitrine.vitrine capa-da-foto <ASIN> <nome> <foto> [--apagar x0,y0,x1,y1]...   capa a partir da FOTO REAL (capa_real_<nome>.png)
   python -m agentes.vitrine.vitrine publicar-imagem <ASIN> <arquivo>      publica em URL pública (ramo midia-amazon) e devolve a URL
   python -m agentes.vitrine.vitrine concluir <rodada> "<resumo>"          marca a rodada como terminada (senão ela é retomada)
 """
@@ -192,11 +193,14 @@ def main(argv: list) -> int:
         return 0
     if cmd == "pedir-envio":
         return cmd_pedir_envio(argv[1], int(argv[2]), argv[3])
-    if cmd in ("imagem", "publicar-imagem", "baixar-imagens"):
+    if cmd in ("imagem", "publicar-imagem", "baixar-imagens", "capa-da-foto"):
         from agentes.vitrine import midia
         try:
             if cmd == "baixar-imagens":
                 r = midia.baixar_origem(argv[1])
+            elif cmd == "capa-da-foto":    # capa-da-foto <ASIN> <nome> <foto> [--apagar x0,y0,x1,y1]...
+                apagar = [argv[i + 1].split(",") for i, a in enumerate(argv) if a == "--apagar" and i + 1 < len(argv)]
+                r = midia.capa_da_foto(argv[1], argv[2], argv[3], apagar)
             elif cmd == "imagem":
                 with open(argv[3], encoding="utf-8-sig") as f:
                     prompt = f.read()

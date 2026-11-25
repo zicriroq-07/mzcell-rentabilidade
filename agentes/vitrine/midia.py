@@ -81,7 +81,42 @@ def _branquear(caminho: str, limiar: int = 246):
     im.save(caminho)
 
 
+def capa_da_foto(asin: str, nome: str, foto: str, apagar: list = None, ocupacao: float = 0.85) -> str:
+    """Capa a partir da FOTO REAL (nada é gerado): pinta de branco as áreas `apagar` (retângulos x0,y0,x1,y1 em
+    pixels da foto: textos, círculos de detalhe, selos, frutas soltas fora do produto), recorta o que sobrou e
+    centraliza em fundo branco puro, ocupando ~85% do quadro, 1500x1500."""
+    if not re.fullmatch(r"[A-Za-z0-9_\-]{1,30}", nome):
+        raise cerca.Recusa("nome: só letras, números, _ e - (até 30)")
+    origem = _dentro(asin, foto)
+    im = Image.open(origem).convert("RGB")
+    from PIL import ImageDraw
+    d = ImageDraw.Draw(im)
+    for area in apagar or []:
+        v = [int(float(x)) for x in area]
+        if len(v) == 3:                                   # círculo: cx,cy,raio (ex.: o detalhe redondo no canto)
+            d.ellipse((v[0] - v[2], v[1] - v[2], v[0] + v[2], v[1] + v[2]), fill=(255, 255, 255))
+        elif len(v) == 4:                                 # retângulo: x0,y0,x1,y1
+            d.rectangle(tuple(v), fill=(255, 255, 255))
+        else:
+            raise cerca.Recusa("cada --apagar é x0,y0,x1,y1 (retângulo) ou cx,cy,r (círculo)")
+    cinza = im.convert("L").point(lambda v: 255 if v < 235 else 0)
+    caixa = cinza.getbbox()
+    if not caixa:
+        raise cerca.Recusa("não sobrou produto na foto depois de apagar as áreas")
+    prod = im.crop(caixa)
+    lado = int(max(prod.size) / ocupacao)
+    tela = Image.new("RGB", (lado, lado), (255, 255, 255))
+    tela.paste(prod, ((lado - prod.width) // 2, (lado - prod.height) // 2))
+    destino = os.path.join(_pasta(asin), f"capa_real_{nome}.png")
+    tela.resize((1500, 1500), Image.LANCZOS).save(destino)
+    _branquear(destino)
+    return destino
+
+
 def gerar(asin: str, nome: str, prompt: str, capa: bool = False, referencias: list = None) -> str:
+    if capa or nome.lower().startswith("capa"):
+        raise cerca.Recusa("capa não se gera com IA: use capa-da-foto (a partir da foto real). O Codex só faz "
+                           "imagens SECUNDÁRIAS, e sempre com o produto idêntico ao das fotos reais")
     if not re.fullmatch(r"[A-Za-z0-9_\-]{1,40}", nome):
         raise cerca.Recusa("nome da imagem: só letras, números, _ e - (até 40)")
     pasta = _pasta(asin)

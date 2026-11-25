@@ -97,6 +97,15 @@ def checar_listing(mandato: dict, sku: str, patches: list, preco_atual: float = 
                 raise Recusa("purchasable_offer sem preço")
             for v in precos:
                 checar_preco(produto, v, preco_atual, mandato.get("limite_variacao_preco_dia", 0.15))
+        if attr == "main_product_image_locator":
+            # 25/11: uma capa gerada pelo Codex saiu com produto diferente do real. A capa só pode vir da FOTO REAL,
+            # recortada/limpa pelo comando capa-da-foto (arquivos capa_real_*).
+            if p.get("op") == "delete":
+                raise Recusa("apagar a imagem principal não é permitido")
+            for v in p.get("value") or []:
+                if "/capa_real_" not in str(v.get("media_location", "")):
+                    raise Recusa("a imagem principal só pode ser a foto real limpa (comando capa-da-foto, arquivo "
+                                 "capa_real_*); capa gerada por IA não é permitida")
     return produto
 
 

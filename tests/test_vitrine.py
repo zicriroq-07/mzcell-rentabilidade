@@ -95,6 +95,19 @@ class Margem(unittest.TestCase):
         self.assertGreater(cerca.piso_zero_a_zero(p, 0.10), cerca.piso_zero_a_zero(p))
 
 
+class CapaSoDaFotoReal(unittest.TestCase):
+    def _patch(self, url):
+        return [{"op": "replace", "path": "/attributes/main_product_image_locator",
+                 "value": [{"marketplace_id": "A2Q3Y263D00KWC", "media_location": url}]}]
+
+    def test_capa_gerada_recusada(self):
+        with self.assertRaises(Recusa):
+            cerca.checar_listing(M, "FRT-ARM-FBA", self._patch("https://x/amazon02/vitrine/B0DHK7NPMN/capa_v2_1.jpg"))
+
+    def test_capa_da_foto_aceita(self):
+        cerca.checar_listing(M, "FRT-ARM-FBA", self._patch("https://x/amazon02/vitrine/B0DHK7NPMN/capa_real_v1_1.jpg"))
+
+
 class LimitesDoDia(unittest.TestCase):
     """Teto de ações confirmadas por dia e 1 mudança de preço por SKU por dia (lidos do diário)."""
 
