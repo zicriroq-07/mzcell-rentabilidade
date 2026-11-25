@@ -9,6 +9,9 @@ MZ App
   python -m agentes.vitrine.vitrine margem                                piso, preço atual e MC por TACoS
   python -m agentes.vitrine.vitrine pedir-envio <ASIN> <qtd> "<motivo>"   pede envio ao FBA por e-mail (não envia nada à Amazon)
   python -m agentes.vitrine.vitrine relatorio [--enviar]                  resumo do dia (e-mail aos destinatários do mandato)
+  python -m agentes.vitrine.vitrine baixar-imagens <ASIN>                 imagens atuais do catálogo → dados/midia/<ASIN>/origem
+  python -m agentes.vitrine.vitrine imagem <ASIN> <nome> <prompt.txt> [--capa] [--ref origem/x.jpg]...   gera 1 imagem com o Codex (dados/midia/<ASIN>/<nome>.png)
+  python -m agentes.vitrine.vitrine publicar-imagem <ASIN> <arquivo>      publica em URL pública (ramo midia-amazon) e devolve a URL
 """
 
 import json
@@ -188,6 +191,28 @@ def main(argv: list) -> int:
         return 0
     if cmd == "pedir-envio":
         return cmd_pedir_envio(argv[1], int(argv[2]), argv[3])
+    if cmd in ("imagem", "publicar-imagem", "baixar-imagens"):
+        from agentes.vitrine import midia
+        try:
+            if cmd == "baixar-imagens":
+                r = midia.baixar_origem(argv[1])
+            elif cmd == "imagem":
+                with open(argv[3], encoding="utf-8-sig") as f:
+                    prompt = f.read()
+                refs = [argv[i + 1] for i, a in enumerate(argv) if a == "--ref" and i + 1 < len(argv)]
+                r = midia.gerar(argv[1], argv[2], prompt, capa="--capa" in argv, referencias=refs)
+            else:
+                r = midia.publicar(argv[1], argv[2])
+        except cerca.Recusa as e:
+            print(f"RECUSADA pela cerca: {e}")
+            return 3
+        except Exception as e:
+            registrar({"tipo": cmd, "alvo": argv[1], "erro": f"{type(e).__name__}: {str(e)[:300]}"})
+            print(f"ERRO: {type(e).__name__}: {str(e)[:500]}")
+            return 2
+        registrar({"tipo": cmd, "alvo": argv[1], "resultado": r, "confirmado": True})
+        print(json.dumps(r, ensure_ascii=False, indent=1))
+        return 0
     if cmd == "relatorio":
         texto = montar_relatorio()
         print(texto)

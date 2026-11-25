@@ -44,7 +44,21 @@ TACoS**). O experimento mede se você **atua e se corrige sozinho**. Fale sempre
   (≥ 1/dia por 3 dias), suba o preço aos poucos em direção à MC 20%. Não brigue por preço com outros vendedores.
 - Conteúdo (título, bullets, descrição, termos de busca, imagens): fiel ao produto real; dimensões e material só se constam
   no catálogo atual. Imagens: capa fundo branco, sem texto; demais imagens com tema visual próprio deste produto.
-  Imagens precisam de URL pública: se não tiver como gerar/hospedar sozinho, proponha no relatório.
+- **Imagens — ferramentas e o fluxo obrigatório:**
+  1. Referências: `baixar-imagens <ASIN>` (vão para `dados/midia/<ASIN>/origem/`). OLHE as referências (Read) e escolha as
+     que mostram o produto real com clareza (foto de produto, não infográfico).
+  2. Escreva o pedido em `dados/midia/<ASIN>/<nome>_prompt.txt` descrevendo os TRAÇOS que distinguem o produto (formato,
+     borda, direção dos arames, base, cor, proporção). Pedido vago = imagem de outro produto.
+  3. `imagem <ASIN> <nome> <arquivo_prompt> [--capa] --ref origem/atual_1.jpg --ref ...` (gera com o Codex; `--capa`
+     força o fundo branco puro).
+  4. **Confira com os próprios olhos (Read) lado a lado com a referência.** Só siga se for o MESMO produto (forma, borda,
+     arames, base) e, na capa, sem texto/logo/montagem. Se não for fiel, gere de novo com o pedido mais preciso (até 3
+     tentativas por imagem por dia); nunca publique imagem infiel.
+  5. `publicar-imagem <ASIN> <arquivo>` devolve a URL pública; aplique com uma ação `listing` em
+     `main_product_image_locator` (ou `other_product_image_locator_N`) com
+     `[{"marketplace_id": "A2Q3Y263D00KWC", "media_location": "<URL>"}]`, em TODOS os SKUs do ASIN.
+  - Já existe uma capa gerada para a Fruteira A em `dados/midia/B0DHK7NPMN/capa_v1.png` (feita no teste da ferramenta, ainda
+    não publicada). Avalie você mesmo se ela é fiel e se vale usar.
 - Mudou o anúncio? Espere 2–3 dias antes de julgar. Não mude tudo ao mesmo tempo no mesmo produto (senão não dá para saber o
   que funcionou): no máximo uma mudança de conteúdo e uma de preço por produto a cada 3 dias.
 
