@@ -172,3 +172,13 @@ full_arvores_agenda.log
 full_agendamentos.db
 full_agendamentos.db-wal
 full_agendamentos.db-shm
+
+# Credenciais da Amazon Ads API (client_id, client_secret, refresh_token) - NUNCA commitar
+amazon_ads_config.json
+amazon_ads_config.json.*
+amazon_ads_codigo.txt
+
+# Agente Vitrine: mandato (CMV, e-mails), dados, diário e freio - local, nunca commitar
+agentes/vitrine/mandato.json
+agentes/vitrine/dados/
+agentes/vitrine/PARAR

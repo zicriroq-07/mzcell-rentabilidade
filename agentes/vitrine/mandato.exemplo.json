@@ -1,0 +1,15 @@
+{
+ "_leia": "Modelo. Copie para mandato.json (gitignored) e preencha. A cerca (cerca.py) recusa qualquer ação fora daqui.",
+ "conta": "amazon02",
+ "inicio": "AAAA-MM-DD",
+ "fim": "AAAA-MM-DD",
+ "margem_alvo": 0.20,
+ "limite_variacao_preco_dia": 0.15,
+ "destinatarios": ["quem-recebe-o-resumo@exemplo.com"],
+ "responsaveis_envio": ["quem-faz-o-envio-fba@exemplo.com"],
+ "ads": {"prefixo": "VITRINE | ", "teto_dia": 100.0, "teto_total": 1500.0, "reserva_atraso": 100.0, "lance_max": 3.0},
+ "produtos": [
+  {"nome": "Nome curto", "asin": "B0XXXXXXXX", "skus": ["SKU-FBA", "SKU-DBA"], "sku_fba": "SKU-FBA",
+   "cmv": 0.0, "imposto_pct": 0.0, "comissao_pct": 0.12, "tarifa_fba": 0.0, "preco_piso": 0.0, "preco_teto": 0.0}
+ ]
+}
