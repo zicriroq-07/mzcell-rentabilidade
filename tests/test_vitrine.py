@@ -95,5 +95,52 @@ class Margem(unittest.TestCase):
         self.assertGreater(cerca.piso_zero_a_zero(p, 0.10), cerca.piso_zero_a_zero(p))
 
 
+class LimitesDoDia(unittest.TestCase):
+    """Teto de ações confirmadas por dia e 1 mudança de preço por SKU por dia (lidos do diário)."""
+
+    def setUp(self):
+        import json
+        import os
+        import tempfile
+        from agentes.vitrine import escrita
+        self.escrita, self.json = escrita, json
+        self.tmp = tempfile.mkdtemp()
+        self.antigo = escrita.DIARIO
+        escrita.DIARIO = os.path.join(self.tmp, "diario.jsonl")
+        self.dia = escrita.hoje().isoformat()
+
+    def tearDown(self):
+        self.escrita.DIARIO = self.antigo
+
+    def _gravar(self, entradas):
+        with open(self.escrita.DIARIO, "w", encoding="utf-8") as f:
+            for e in entradas:
+                f.write(self.json.dumps(e) + "\n")
+
+    def _preco(self, sku):
+        return {"tipo": "listing", "sku": sku, "patches": [{"op": "replace", "path": "/attributes/purchasable_offer"}]}
+
+    def test_teto_de_acoes(self):
+        ok = {"quando": self.dia + "T10:00:00-03:00", "tipo": "ajustar_campanha", "confirmado": True, "resultado": {}}
+        self._gravar([ok] * 7 + [{**ok, "recusado": "x"}, {**ok, "confirmado": False}])
+        self.escrita.checar_limites_do_dia({"tipo": "ajustar_campanha"})      # 7 válidas: ainda pode
+        self._gravar([ok] * 8)
+        with self.assertRaises(Recusa):
+            self.escrita.checar_limites_do_dia({"tipo": "ajustar_campanha"})
+
+    def test_um_preco_por_sku(self):
+        e = {"quando": self.dia + "T08:30:00-03:00", "tipo": "listing", "confirmado": True, "resultado": {},
+             "acao": self._preco("FRT-ARM-FBA")}
+        ontem = {**e, "quando": "2000-01-01T08:30:00-03:00"}
+        self._gravar([ontem])
+        self.escrita.checar_limites_do_dia(self._preco("FRT-ARM-FBA"))
+        self._gravar([e])
+        with self.assertRaises(Recusa):
+            self.escrita.checar_limites_do_dia(self._preco("FRT-ARM-FBA"))
+        self.escrita.checar_limites_do_dia(self._preco("FRTCLK-FBA"))           # outro SKU pode
+        self.escrita.checar_limites_do_dia({"tipo": "listing", "sku": "FRT-ARM-FBA",
+                                            "patches": [{"op": "replace", "path": "/attributes/item_name"}]})
+
+
 if __name__ == "__main__":
     unittest.main()

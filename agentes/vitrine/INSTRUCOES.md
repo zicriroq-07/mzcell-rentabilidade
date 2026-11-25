@@ -19,18 +19,28 @@ TACoS**). O experimento mede se você **atua e se corrige sozinho**. Fale sempre
 - Cupom: a API só lê. Se achar que um cupom vale, escreva a proposta no relatório (desconto, orçamento, por quê).
 - Toda ação precisa de `motivo` (o que você viu nos dados) e `esperado` (o que deve acontecer e em quantos dias). É com isso
   que o seu acerto é medido.
-- Limite: no máximo **5 ações confirmadas por dia**. Mudança de preço: no máximo 1 por SKU por dia.
+- Limites (a cerca aplica no código): no máximo **8 ações confirmadas por dia** e **1 mudança de preço por SKU por dia**.
+  Por rodada, use no máximo 3 confirmadas, para sobrar espaço para corrigir nas rodadas seguintes.
 
-## Rotina de cada dia
+## Rodadas: 4 por dia (08h, 12h, 16h, 20h)
+
+O prompt diz qual rodada é (ex.: `2026-11-26_12h`) e se é intermediária ou de **fechamento** (20h). Uma rodada não
+pode ficar pela metade: se o tempo acabar, você é chamado de novo para continuar. Por isso, **registre o andamento em
+`dados/notas.md` à medida que avança** (o que já fez e o que falta), para a próxima chamada retomar sem repetir nada.
 
 1. `.\venv\Scripts\python.exe -m agentes.vitrine.vitrine vigia` (freio). Se pausou algo, só relate.
-2. `.\venv\Scripts\python.exe -m agentes.vitrine.vitrine coletar` (fotografia do dia; demora alguns minutos).
-3. Leia `agentes/vitrine/dados/estado.json`, as fotos anteriores em `dados/fotos/` e o `dados/diario.jsonl`.
-4. **Autocorreção primeiro:** para cada ação dos dias anteriores cujo prazo do `esperado` venceu, compare com o que aconteceu.
-   Escreva no relatório: acertou / errou / inconclusivo, e o que muda. Se errou duas vezes na mesma linha, mude de linha.
-5. Decida as ações do dia (veja a estratégia), simule, confirme.
-6. `.\venv\Scripts\python.exe -m agentes.vitrine.vitrine relatorio --enviar` e, se tiver avaliação ou proposta que não cabe no relatório
-   automático, inclua no fim do arquivo `dados/notas.md` (data, avaliação das ações, plano de amanhã).
+2. `.\venv\Scripts\python.exe -m agentes.vitrine.vitrine coletar`. Demora alguns minutos. Na 1ª rodada do dia é
+   obrigatório; nas outras, rode de novo só se precisar de número novo (dados de Ads da Amazon atrasam de 3 a 12 h).
+3. Leia `dados/estado.json`, as fotos anteriores em `dados/fotos/`, `dados/diario.jsonl` e o fim de `dados/notas.md`.
+4. **Autocorreção primeiro:** para cada ação anterior cujo prazo do `esperado` venceu, compare com o que aconteceu:
+   acertou / errou / inconclusivo, e o que muda. Se errou duas vezes na mesma linha, mude de linha.
+5. **Termine o que ficou aberto** (ex.: imagem que falhou na conferência, ação recusada que dá para refazer certo), depois
+   decida as ações novas (veja a estratégia), simule, confirme. Trabalho pesado (gerar e conferir imagens, reescrever texto)
+   cabe nas rodadas intermediárias: assim a correção entra no mesmo dia.
+6. Anote em `dados/notas.md`: rodada, o que fez, avaliação e o que fica para a próxima rodada.
+7. Só no **fechamento (20h)**: `.\venv\Scripts\python.exe -m agentes.vitrine.vitrine relatorio --enviar` (um e-mail por dia).
+8. Por último, sempre: `.\venv\Scripts\python.exe -m agentes.vitrine.vitrine concluir <rodada> "<resumo curto>"`. Sem isso a
+   rodada é considerada interrompida e você é chamado de novo.
 
 ## Estratégia de referência (adapte aos dados)
 
@@ -58,7 +68,38 @@ TACoS**). O experimento mede se você **atua e se corrige sozinho**. Fale sempre
      `main_product_image_locator` (ou `other_product_image_locator_N`) com
      `[{"marketplace_id": "A2Q3Y263D00KWC", "media_location": "<URL>"}]`, em TODOS os SKUs do ASIN.
   - Já existe uma capa gerada para a Fruteira A em `dados/midia/B0DHK7NPMN/capa_v1.png` (feita no teste da ferramenta, ainda
-    não publicada). Avalie você mesmo se ela é fiel e se vale usar.
+    não publicada). Avalie você mesmo se ela é fiel e se vale usar. Sobre ela o Zicri comentou (informação, não ordem):
+    "atende os requisitos, mas não é vendedora".
+
+## Como pedir ao Codex (o que já aprendemos)
+
+O Codex desenha o que você descreve, não o que você imagina. Monte o `_prompt.txt` nesta ordem:
+
+1. **Papel e objetivo:** "Fotografia de produto profissional para a imagem PRINCIPAL de um anúncio da Amazon Brasil" (ou
+   "imagem secundária de estilo de vida", ou "infográfico").
+2. **O produto, traço por traço, olhando a referência:** formato (redonda, oval), quantos níveis, como é a borda, para onde
+   correm os arames (radiais, ondulados, em grade), a base (pés, anel, plana), cor e acabamento (preto fosco, cromado),
+   proporção altura × diâmetro. Diga o que ele NÃO tem (ex.: "sem alça", "sem pé central").
+3. **Enquadramento:** produto inteiro, ocupando ~85% do quadro, centralizado. Ângulo 3/4 levemente de cima (~30°), que
+   mostra a profundidade e o fundo do cesto; luz de estúdio suave dos dois lados, reflexo controlado no metal, sombra de
+   contato suave embaixo. Nitidez total, 2000×2000 px.
+4. **Regras da capa:** fundo branco puro (#FFFFFF); só o produto que o cliente recebe; nada de texto, logo, selo, marca
+   d'água, borda, montagem ou objeto que não vem na caixa (frutas na capa são acessório que não vem: não use).
+5. **Imagens secundárias** (fundo livre, tema visual próprio deste produto): aí vale mostrar o uso real (frutas, mesa posta,
+   bancada), medidas, detalhe do acabamento, comparação de tamanho com objetos do dia a dia. Pode ter texto curto e
+   legível em português se for infográfico.
+6. **Feche com a proibição de inventar:** "Mantenha exatamente o desenho do produto das referências; não invente detalhes".
+
+O que faz uma capa **vender**, além de cumprir a regra: o produto parece grande e caro na miniatura (ocupa o quadro), o
+ângulo mostra volume e capacidade, o metal tem brilho limpo e sem manchas, as linhas ficam retas e simétricas, nada fica
+cortado. Pense na grade de resultados da busca "fruteira de mesa", cheia de fruteiras em fundo branco: a sua precisa
+chamar mais a atenção na miniatura do que elas.
+
+Erros já vistos com o Codex: mudou o produto (outro desenho de arame), errou a quantidade, criou texto ou logo, deixou halo
+branco de recorte, espelhou detalhes. Se errar, **não repita o mesmo pedido**: diga no novo pedido exatamente o que estava
+errado ("a borda da referência é lisa, você fez ondulada; corrija") e mande a mesma referência com `--ref`. Editar a imagem
+que está quase certa (mandando a geração anterior como `--ref` e pedindo só a correção) custa menos e erra menos do que
+gerar do zero.
 - Mudou o anúncio? Espere 2–3 dias antes de julgar. Não mude tudo ao mesmo tempo no mesmo produto (senão não dá para saber o
   que funcionou): no máximo uma mudança de conteúdo e uma de preço por produto a cada 3 dias.
 

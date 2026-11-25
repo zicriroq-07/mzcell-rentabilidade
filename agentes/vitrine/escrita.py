@@ -262,6 +262,41 @@ ACOES = {"listing": listing, "criar_campanha": criar_campanha, "ajustar_campanha
          "ajustar_palavras": ajustar_palavras, "pausar_anuncios_fora": pausar_anuncios_fora}
 
 
+MAX_CONFIRMADAS_DIA = 8          # o Vitrine roda 4x por dia; este teto vale para o dia inteiro
+
+
+def _confirmadas_hoje() -> list:
+    """Ações confirmadas com sucesso hoje (dia de Brasília), lidas do diário."""
+    out, dia = [], hoje().isoformat()
+    try:
+        with open(DIARIO, encoding="utf-8") as f:
+            for linha in f:
+                try:
+                    e = json.loads(linha)
+                except ValueError:
+                    continue
+                if (str(e.get("quando", "")).startswith(dia) and e.get("confirmado") and e.get("tipo") in ACOES
+                        and "resultado" in e and not e.get("recusado") and not e.get("erro")):
+                    out.append(e)
+    except OSError:
+        pass
+    return out
+
+
+def _mexe_preco(acao: dict) -> bool:
+    return acao.get("tipo") == "listing" and any(
+        str(p.get("path", "")).rstrip("/").endswith("/purchasable_offer") for p in acao.get("patches") or [])
+
+
+def checar_limites_do_dia(acao: dict):
+    feitas = _confirmadas_hoje()
+    if len(feitas) >= MAX_CONFIRMADAS_DIA:
+        raise cerca.Recusa(f"já são {len(feitas)} ações confirmadas hoje (máximo {MAX_CONFIRMADAS_DIA}/dia); deixe para amanhã")
+    if _mexe_preco(acao) and any(_mexe_preco(e.get("acao") or {}) and (e.get("acao") or {}).get("sku") == acao.get("sku")
+                                 for e in feitas):
+        raise cerca.Recusa(f"o preço do SKU {acao.get('sku')} já mudou hoje (máximo 1 mudança de preço por SKU por dia)")
+
+
 def executar(acao: dict, confirmar: bool = False) -> dict:
     fn = ACOES.get(acao.get("tipo"))
     if not fn:
@@ -269,6 +304,8 @@ def executar(acao: dict, confirmar: bool = False) -> dict:
     base = {"tipo": acao.get("tipo"), "alvo": acao.get("sku") or acao.get("campaignId") or acao.get("nome"),
             "motivo": acao.get("motivo"), "esperado": acao.get("esperado"), "confirmado": confirmar}
     try:
+        if confirmar:
+            checar_limites_do_dia(acao)
         res = fn(acao, confirmar)
     except cerca.Recusa as e:
         registrar({**base, "recusado": str(e)})

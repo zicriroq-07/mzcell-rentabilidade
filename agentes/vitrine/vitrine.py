@@ -12,13 +12,14 @@ MZ App
   python -m agentes.vitrine.vitrine baixar-imagens <ASIN>                 imagens atuais do catálogo → dados/midia/<ASIN>/origem
   python -m agentes.vitrine.vitrine imagem <ASIN> <nome> <prompt.txt> [--capa] [--ref origem/x.jpg]...   gera 1 imagem com o Codex (dados/midia/<ASIN>/<nome>.png)
   python -m agentes.vitrine.vitrine publicar-imagem <ASIN> <arquivo>      publica em URL pública (ramo midia-amazon) e devolve a URL
+  python -m agentes.vitrine.vitrine concluir <rodada> "<resumo>"          marca a rodada como terminada (senão ela é retomada)
 """
 
 import json
 import os
 import smtplib
 import sys
-from datetime import date
+from datetime import date, datetime
 from email.mime.text import MIMEText
 
 from agentes.vitrine import cerca, escrita
@@ -212,6 +213,16 @@ def main(argv: list) -> int:
             return 2
         registrar({"tipo": cmd, "alvo": argv[1], "resultado": r, "confirmado": True})
         print(json.dumps(r, ensure_ascii=False, indent=1))
+        return 0
+    if cmd == "concluir":         # concluir <rodada> "<resumo curto>": marca a rodada como terminada
+        if len(argv) < 3 or not argv[2].strip():
+            print('uso: concluir <rodada> "<resumo curto do que foi feito e do que ficou para a próxima>"')
+            return 1
+        caminho = os.path.join(os.path.dirname(escrita.DIARIO), "rodadas.jsonl")
+        with open(caminho, "a", encoding="utf-8") as f:
+            f.write(json.dumps({"rodada": argv[1], "quando": datetime.now(escrita.BRT).isoformat(timespec="seconds"),
+                                "resumo": argv[2][:2000]}, ensure_ascii=False) + "\n")
+        print(f"rodada {argv[1]} concluída")
         return 0
     if cmd == "relatorio":
         texto = montar_relatorio()
