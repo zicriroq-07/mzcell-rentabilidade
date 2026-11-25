@@ -7,12 +7,14 @@ TACoS**). O experimento mede se você **atua e se corrige sozinho**. Fale sempre
 
 ## A cerca (não negociável)
 
-- Toda escrita na Amazon passa por `python -m agentes.vitrine.vitrine acao <arquivo.json> [--confirmar]`. **Nunca** use
+- Comandos: use SEMPRE exatamente `.\venv\Scripts\python.exe -m agentes.vitrine.vitrine <comando>`, um por vez, sem `cd`, sem `&&`/`;` e sem pipe (outras formas são bloqueadas). Arquivos de ação em `agentes/vitrine/dados/acoes/`.
+
+- Toda escrita na Amazon passa por `.\venv\Scripts\python.exe -m agentes.vitrine.vitrine acao <arquivo.json> [--confirmar]`. **Nunca** use
   `marketplaces.amazon.api`, `ads_cliente` ou outro script para escrever. Nunca edite `mandato.json`, `cerca.py`,
   `escrita.py` nem apague `PARAR`. Se a cerca recusar, **não contorne**: registre e siga.
 - Sempre rode a ação **sem** `--confirmar` primeiro (simulação/validação), leia a resposta e só então repita com `--confirmar`.
 - Só os produtos do mandato. Não mexa no Mercado Livre, Bling, Amazon 1 nem em outros produtos.
-- Envio ao FBA: você **não envia**. Peça com `vitrine pedir-envio <ASIN> <qtd> "<motivo>"` (no máximo 1 pedido por produto a
+- Envio ao FBA: você **não envia**. Peça com `.\venv\Scripts\python.exe -m agentes.vitrine.vitrine pedir-envio <ASIN> <qtd> "<motivo>"` (no máximo 1 pedido por produto a
   cada 3 dias, e só quando a cobertura do FBA ficar abaixo de ~7 dias de venda).
 - Cupom: a API só lê. Se achar que um cupom vale, escreva a proposta no relatório (desconto, orçamento, por quê).
 - Toda ação precisa de `motivo` (o que você viu nos dados) e `esperado` (o que deve acontecer e em quantos dias). É com isso
@@ -21,13 +23,13 @@ TACoS**). O experimento mede se você **atua e se corrige sozinho**. Fale sempre
 
 ## Rotina de cada dia
 
-1. `python -m agentes.vitrine.vitrine vigia` (freio). Se pausou algo, só relate.
-2. `python -m agentes.vitrine.vitrine coletar` (fotografia do dia; demora alguns minutos).
+1. `.\venv\Scripts\python.exe -m agentes.vitrine.vitrine vigia` (freio). Se pausou algo, só relate.
+2. `.\venv\Scripts\python.exe -m agentes.vitrine.vitrine coletar` (fotografia do dia; demora alguns minutos).
 3. Leia `agentes/vitrine/dados/estado.json`, as fotos anteriores em `dados/fotos/` e o `dados/diario.jsonl`.
 4. **Autocorreção primeiro:** para cada ação dos dias anteriores cujo prazo do `esperado` venceu, compare com o que aconteceu.
    Escreva no relatório: acertou / errou / inconclusivo, e o que muda. Se errou duas vezes na mesma linha, mude de linha.
 5. Decida as ações do dia (veja a estratégia), simule, confirme.
-6. `python -m agentes.vitrine.vitrine relatorio --enviar` e, se tiver avaliação ou proposta que não cabe no relatório
+6. `.\venv\Scripts\python.exe -m agentes.vitrine.vitrine relatorio --enviar` e, se tiver avaliação ou proposta que não cabe no relatório
    automático, inclua no fim do arquivo `dados/notas.md` (data, avaliação das ações, plano de amanhã).
 
 ## Estratégia de referência (adapte aos dados)
@@ -38,7 +40,7 @@ TACoS**). O experimento mede se você **atua e se corrige sozinho**. Fale sempre
 - Orçamento: comece em ~R$ 25–35/dia por produto; aumente só onde houver venda; corte onde houver gasto sem venda
   (ex.: > R$ 15 por termo sem venda → negativar ou baixar lance). O teto/dia (R$ 100) e o total (R$ 1.500) são da cerca.
 - Preço: na fase de ranqueamento pode descer até o zero a zero considerando o TACoS real dos últimos 7 dias
-  (`vitrine margem` mostra o zero a zero por TACoS). Nunca abaixo do `preco_piso`. Quando houver venda constante
+  (`.\venv\Scripts\python.exe -m agentes.vitrine.vitrine margem` mostra o zero a zero por TACoS). Nunca abaixo do `preco_piso`. Quando houver venda constante
   (≥ 1/dia por 3 dias), suba o preço aos poucos em direção à MC 20%. Não brigue por preço com outros vendedores.
 - Conteúdo (título, bullets, descrição, termos de busca, imagens): fiel ao produto real; dimensões e material só se constam
   no catálogo atual. Imagens: capa fundo branco, sem texto; demais imagens com tema visual próprio deste produto.

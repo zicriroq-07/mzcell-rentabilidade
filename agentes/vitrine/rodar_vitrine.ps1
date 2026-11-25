@@ -33,11 +33,19 @@ $prompt = "Você é o agente Vitrine. Leia agentes/vitrine/INSTRUCOES.md e execu
 $permitidas = @(
     "Read", "Glob", "Grep",
     "Edit(agentes/vitrine/dados/**)",
-    "PowerShell(.\venv\Scripts\python.exe -m agentes.vitrine.vitrine *)"
+    "PowerShell(.\venv\Scripts\python.exe -m agentes.vitrine.vitrine *)",
+    "PowerShell(./venv/Scripts/python.exe -m agentes.vitrine.vitrine *)",
+    "PowerShell(venv\Scripts\python.exe -m agentes.vitrine.vitrine *)",
+    "PowerShell(& .\venv\Scripts\python.exe -m agentes.vitrine.vitrine *)"
 ) -join ","
 claude -p $prompt --restricted --strict-mcp-config --tools "Read,Glob,Grep,Edit,Write,PowerShell" `
     --allowedTools $permitidas --max-turns 80 *>> $log
 $fim = $LASTEXITCODE
 Log ("rodada diária: fim (código " + $fim + ")")
-if ($fim -eq 0) { [System.IO.File]::WriteAllText($marca, $hoje, (New-Object System.Text.UTF8Encoding($false))) }
+$resumo = Join-Path $dados "resumo_enviado.txt"
+if ((Test-Path $resumo) -and ((Get-Content $resumo -Raw).Trim() -eq $hoje)) {
+    [System.IO.File]::WriteAllText($marca, $hoje, (New-Object System.Text.UTF8Encoding($false)))
+} else {
+    Log "resumo do dia não saiu: a rodada fica pendente e tenta de novo no próximo disparo"
+}
 exit $fim

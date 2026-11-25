@@ -111,7 +111,9 @@ def montar_relatorio() -> str:
     foto = est.get("foto") or {}
     dia = hoje()
     ini, fim = date.fromisoformat(m["inicio"]), date.fromisoformat(m["fim"])
-    L = [f"VITRINE — Amazon 2 — {dia:%d/%m/%Y} (dia {(dia - ini).days + 1} de {(fim - ini).days + 1})", ""]
+    faltam = (fim - dia).days
+    L = [f"VITRINE — Amazon 2 — {dia:%d/%m/%Y} (dia {(dia - ini).days + 1} de {(fim - ini).days + 1})",
+         f"⏳ Faltam {faltam} dia(s) para o fim do mandato ({fim:%d/%m})" if faltam > 0 else "⏳ Último dia do mandato", ""]
     L.append(f"Ads: gasto acumulado {_brl(est.get('gasto_acumulado', 0))} de {_brl(m['ads']['teto_total'])} "
              f"(teto/dia {_brl(m['ads']['teto_dia'])})")
     for c in foto.get("campanhas", []):
@@ -191,7 +193,10 @@ def main(argv: list) -> int:
         print(texto)
         if "--enviar" in argv:
             m = carregar_mandato()
-            enviar_email(m["destinatarios"], f"Vitrine — resumo de {hoje():%d/%m}", texto)
+            if enviar_email(m["destinatarios"], f"Vitrine — resumo de {hoje():%d/%m}", texto):
+                # marca usada pelo rodar_vitrine.ps1: o dia só conta como feito se o resumo saiu
+                with open(os.path.join(os.path.dirname(escrita.DIARIO), "resumo_enviado.txt"), "w", encoding="utf-8") as f:
+                    f.write(hoje().isoformat())
         return 0
     print(__doc__)
     return 1
