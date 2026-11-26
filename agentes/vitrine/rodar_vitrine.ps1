@@ -17,10 +17,12 @@ $log = Join-Path $dados ("log_" + (Get-Date -Format "yyyy-MM-dd") + ".txt")
 $utf8 = New-Object System.Text.UTF8Encoding($false)
 
 function Log($t) { Add-Content -Path $log -Value ("[" + (Get-Date -Format "HH:mm:ss") + "] " + $t) -Encoding utf8 }
+# saída de programas vai para o log em UTF-8 (o `*>>` do PowerShell 5.1 grava UTF-16 e o log ficava ilegível)
+function ParaLog { process { [System.IO.File]::AppendAllText($log, ([string]$_) + "`r`n", $utf8) } }
 
 if ($Modo -eq "vigia") {
     Log "vigia"
-    & $py -m agentes.vitrine.vitrine vigia *>> $log
+    & $py -m agentes.vitrine.vitrine vigia 2>&1 | ParaLog
     exit $LASTEXITCODE
 }
 
@@ -36,8 +38,8 @@ $fechamento = ($h -eq 20)
 $feitas = Join-Path $dados "rodadas_feitas.txt"
 if ((Test-Path $feitas) -and ((Get-Content $feitas) -contains $rodada)) { exit 0 }
 & $py -m agentes.vitrine.vitrine ativo | Out-Null
-if ($LASTEXITCODE -ne 0) { & $py -m agentes.vitrine.vitrine vigia *>> $log; exit 0 }   # fora da janela: só o freio
-if (Test-Path (Join-Path $PSScriptRoot "PARAR")) { Log "PARAR presente: rodada não feita"; & $py -m agentes.vitrine.vitrine vigia *>> $log; exit 0 }
+if ($LASTEXITCODE -ne 0) { & $py -m agentes.vitrine.vitrine vigia 2>&1 | ParaLog; exit 0 }   # fora da janela: só o freio
+if (Test-Path (Join-Path $PSScriptRoot "PARAR")) { Log "PARAR presente: rodada não feita"; & $py -m agentes.vitrine.vitrine vigia 2>&1 | ParaLog; exit 0 }
 
 function Concluida {
     $arq = Join-Path $dados "rodadas.jsonl"
@@ -76,7 +78,7 @@ for ($t = 1; $t -le $Tentativas; $t++) {
     }
     Log "rodada $rodada : início (tentativa $t)"
     claude -p $prompt --restricted --strict-mcp-config --tools "Read,Glob,Grep,Edit,Write,PowerShell" `
-        --allowedTools $permitidas --max-turns 120 *>> $log
+        --allowedTools $permitidas --max-turns 120 2>&1 | ParaLog
     $fim = $LASTEXITCODE
     Log ("rodada $rodada : fim da tentativa $t (código " + $fim + ")")
 }
