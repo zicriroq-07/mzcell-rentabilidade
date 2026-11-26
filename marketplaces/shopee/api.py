@@ -77,10 +77,22 @@ def _gravar_token(env_nome: str, shop_id: int, dados: dict):
         "saved_at": agora,
         **({"autorizacao_expira": anterior["autorizacao_expira"]} if "autorizacao_expira" in anterior else {}),
     }
+    _gravar_arquivo(todos)
+
+
+def _gravar_arquivo(todos: dict):
+    """Grava inteiro no .tmp e troca; se o Windows travar a troca (WinError 32), tenta de novo e, por fim, grava direto."""
     tmp = TOKENS_PATH + ".tmp"
-    with open(tmp, "w", encoding="utf-8") as f:   # grava inteiro e troca: nunca deixa o arquivo pela metade
+    with open(tmp, "w", encoding="utf-8") as f:
         json.dump(todos, f, indent=2)
-    os.replace(tmp, TOKENS_PATH)
+    for _ in range(6):
+        try:
+            os.replace(tmp, TOKENS_PATH)
+            return
+        except PermissionError:
+            time.sleep(0.3)
+    with open(TOKENS_PATH, "w", encoding="utf-8") as f:
+        json.dump(todos, f, indent=2)
 
 
 def registrar_validade_autorizacao(env_nome: str, shop_id: int, epoch: int):
@@ -89,11 +101,10 @@ def registrar_validade_autorizacao(env_nome: str, shop_id: int, epoch: int):
     reg = todos.get(env_nome, {}).get(str(shop_id))
     if not reg or not epoch:
         return
+    if reg.get("autorizacao_expira") == int(epoch):
+        return                                      # nada mudou: não regrava (evita travar no Windows)
     reg["autorizacao_expira"] = int(epoch)
-    tmp = TOKENS_PATH + ".tmp"
-    with open(tmp, "w", encoding="utf-8") as f:
-        json.dump(todos, f, indent=2)
-    os.replace(tmp, TOKENS_PATH)
+    _gravar_arquivo(todos)
 
 
 def _token(env_nome: str, shop_id: int) -> dict:

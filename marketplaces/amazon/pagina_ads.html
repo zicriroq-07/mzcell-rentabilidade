@@ -1,0 +1,334 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Amazon 2 · Rentabilidade + Ads</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#0a0a0f;--bg2:#111118;--bg3:#1a1a24;--bg4:#22222e;--border:rgba(255,255,255,.07);--border2:rgba(255,255,255,.12);--text:#f0f0f5;--muted:#6b7280;--muted2:#9ca3af;--gold:#f6c90e;--gold2:#d4a50a;--green:#10b981;--red:#ef4444;--blue:#3b82f6;--purple:#8b5cf6;--orange:#f97316;--font:'Outfit','Segoe UI',sans-serif;--mono:'JetBrains Mono',monospace}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:100vh}
+.topbar{background:var(--bg2);border-bottom:1px solid var(--border);padding:0 28px;height:60px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:50;gap:16px}
+.brand{display:flex;align-items:center;gap:12px}.brand b{font-size:15px;font-weight:700;letter-spacing:-.01em}
+.logo{width:30px;height:30px;border-radius:8px;background:linear-gradient(135deg,var(--gold),var(--orange));display:flex;align-items:center;justify-content:center;font-weight:800;color:#0a0a0f;font-size:13px}
+.tag{font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted2);border:1px solid var(--border2);padding:3px 8px;border-radius:99px}
+.actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.preset,.btn{background:var(--bg3);border:1px solid var(--border2);color:var(--muted2);padding:7px 13px;border-radius:8px;cursor:pointer;font-size:12.5px;font-family:var(--font);font-weight:600;transition:all .15s;white-space:nowrap}
+.preset:hover,.btn:hover{border-color:var(--gold);color:var(--text)}
+.preset.on{background:rgba(246,201,14,.12);border-color:var(--gold);color:var(--gold)}
+.btn-gold{background:var(--gold);color:#0a0a0f;border:none;font-weight:700}.btn-gold:hover{background:var(--gold2);color:#0a0a0f}
+.btn[disabled]{opacity:.5;cursor:wait}
+input[type=date]{background:var(--bg3);border:1px solid var(--border2);color:var(--text);padding:6px 9px;border-radius:8px;font-family:var(--font);font-size:12.5px;color-scheme:dark}
+.main{padding:24px 28px 60px;max-width:1700px;margin:0 auto}
+.status{display:flex;align-items:center;gap:10px;font-size:12px;color:var(--muted2);margin-bottom:16px;flex-wrap:wrap}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--green)}.dot.run{background:var(--gold);animation:pulse 1s infinite}.dot.err{background:var(--red)}
+@keyframes pulse{50%{opacity:.3}}
+.barra{height:4px;background:var(--bg3);border-radius:4px;overflow:hidden;width:180px}.barra i{display:block;height:100%;background:var(--gold);transition:width .4s}
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px}
+@media(min-width:1300px){.kpis{grid-template-columns:repeat(8,1fr)}}
+.kpi{background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:16px 18px;position:relative;overflow:hidden}
+.kpi::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--c,var(--border2))}
+.kpi-l{font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted2);margin-bottom:9px}
+.kpi-v{font-size:20px;font-weight:800;font-family:var(--mono);letter-spacing:-.02em}
+.kpi-f{display:flex;justify-content:space-between;margin-top:6px;font-size:11px;color:var(--muted2);font-family:var(--mono);gap:6px}
+.up{color:var(--green)}.down{color:var(--red)}.warn{color:var(--gold)}.mut{color:var(--muted2)}
+.tabs{display:flex;gap:4px;border-bottom:1px solid var(--border);margin-bottom:16px;align-items:flex-end}
+.tab{padding:11px 18px;cursor:pointer;font-size:13.5px;font-weight:600;color:var(--muted2);border-bottom:2px solid transparent;display:flex;gap:8px;align-items:center}
+.tab.on{color:var(--gold);border-bottom-color:var(--gold)}.tab:hover{color:var(--text)}
+.badge{background:var(--bg4);color:var(--muted2);font-size:11px;padding:1px 8px;border-radius:99px;font-family:var(--mono)}.badge.r{background:rgba(239,68,68,.18);color:var(--red)}
+.toolbar{display:flex;gap:10px;align-items:center;margin-bottom:12px;flex-wrap:wrap}
+.busca{background:var(--bg2);border:1px solid var(--border2);color:var(--text);padding:9px 14px;border-radius:9px;font-family:var(--font);font-size:13px;width:280px}
+.chip{padding:6px 12px;border-radius:99px;font-size:12px;font-weight:600;cursor:pointer;background:var(--bg2);border:1px solid var(--border);color:var(--muted2);display:flex;gap:6px;align-items:center}
+.chip.on{border-color:var(--gold);color:var(--gold);background:rgba(246,201,14,.08)}
+.tbox{background:var(--bg2);border:1px solid var(--border);border-radius:14px;overflow:auto;max-height:calc(100vh - 330px)}
+table{width:100%;border-collapse:collapse;font-size:12.5px}
+th{position:sticky;top:0;background:var(--bg3);z-index:2;text-align:right;padding:11px 12px;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted2);font-weight:600;cursor:pointer;white-space:nowrap;border-bottom:1px solid var(--border2)}
+th:first-child,td:first-child{text-align:left}th:hover{color:var(--gold)}
+td{padding:11px 12px;border-bottom:1px solid var(--border);text-align:right;font-family:var(--mono);white-space:nowrap}
+tr.lin{cursor:pointer;transition:background .12s}tr.lin:hover{background:var(--bg3)}
+td.nome{font-family:var(--font);white-space:normal;min-width:300px;max-width:420px}
+.t1{font-weight:600;font-size:13px;line-height:1.3;color:var(--text);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.t2{font-size:11px;color:var(--muted2);margin-top:4px;font-family:var(--mono)}
+.sk{display:inline-block;background:var(--bg4);padding:1px 7px;border-radius:5px;margin-right:4px;font-size:10.5px;color:var(--muted2)}
+.pill{display:inline-block;padding:3px 10px;border-radius:99px;font-size:11px;font-weight:700;font-family:var(--font)}
+.p-ok{background:rgba(16,185,129,.15);color:var(--green)}.p-warn{background:rgba(246,201,14,.15);color:var(--gold)}.p-bad{background:rgba(239,68,68,.15);color:var(--red)}.p-mut{background:var(--bg4);color:var(--muted2)}.p-blue{background:rgba(59,130,246,.15);color:var(--blue)}
+.vazio{padding:60px;text-align:center;color:var(--muted2)}
+.alertas{display:grid;grid-template-columns:repeat(auto-fill,minmax(520px,1fr));gap:14px}
+.al{background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:18px 20px}
+.al h3{font-size:14px;margin-bottom:4px;display:flex;justify-content:space-between;align-items:center}.al p{font-size:12px;color:var(--muted2);margin-bottom:12px;line-height:1.5}
+.al .it{display:flex;justify-content:space-between;gap:12px;padding:8px 0;border-top:1px solid var(--border);font-size:12.5px}
+.al .it span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:62%}.al .it span:last-child{font-family:var(--mono);color:var(--muted2);white-space:nowrap}
+.ov{position:fixed;inset:0;background:rgba(0,0,0,.72);display:none;align-items:flex-start;justify-content:center;z-index:100;overflow:auto;padding:32px 16px}
+.ov.on{display:flex}
+.modal{background:var(--bg2);border:1px solid var(--border2);border-radius:20px;width:1080px;max-width:100%;padding:28px 30px;box-shadow:0 25px 60px rgba(0,0,0,.6)}
+.mh{display:flex;justify-content:space-between;gap:16px;margin-bottom:20px}.mh h2{font-size:17px;line-height:1.3;margin-bottom:8px}
+.x{background:var(--bg3);border:1px solid var(--border2);color:var(--muted2);width:34px;height:34px;border-radius:8px;cursor:pointer;font-size:16px;flex-shrink:0}.x:hover{color:var(--text)}
+.mk{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:18px}.mk .kpi{padding:12px 14px}.mk .kpi-v{font-size:17px}
+.sec{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted2);margin:22px 0 10px;display:flex;justify-content:space-between}
+.mini{background:var(--bg);border:1px solid var(--border);border-radius:12px;overflow:auto;max-height:340px}
+.leg{display:flex;gap:16px;font-size:11px;color:var(--muted2);margin-bottom:6px}.leg i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px}
+.dre{display:grid;grid-template-columns:repeat(6,1fr);gap:8px;margin-bottom:6px}.dre div{background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:10px 12px}.dre small{display:block;font-size:10px;color:var(--muted2);letter-spacing:.08em;text-transform:uppercase;margin-bottom:5px}.dre b{font-family:var(--mono);font-size:14px}
+.nota{font-size:11.5px;color:var(--muted2);margin-top:8px;line-height:1.5}
+.aviso{background:rgba(246,201,14,.08);border:1px solid rgba(246,201,14,.3);color:var(--gold);padding:12px 16px;border-radius:10px;font-size:12.5px;margin-bottom:14px;line-height:1.5}
+
+.cards{display:none}.so-m{display:none}.pre,.dts{display:flex;gap:8px;align-items:center}
+.cardp{background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:14px 14px 12px;cursor:pointer;border-left:3px solid var(--c,var(--border2))}
+.cardp .pills{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0 10px}
+.rec{border-left:3px solid var(--border2);background:var(--bg);border-radius:8px;padding:8px 10px;margin-top:10px;font-size:12px;line-height:1.35}
+.rec b{display:block;font-size:12.5px}.rec span{display:block;color:var(--muted2);margin-top:2px;font-size:11px}
+.rec-ok{border-left-color:var(--green)}.rec-atencao{border-left-color:var(--gold)}.rec-ruim{border-left-color:var(--red)}
+td.recc{min-width:260px;max-width:340px;white-space:normal}td.recc .rec{margin-top:0}
+.cardp .g{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.cardp .g div{background:var(--bg);border-radius:9px;padding:8px 9px;min-width:0}
+.cardp .g small{display:block;font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted2);margin-bottom:3px}
+.cardp .g b{font-family:var(--mono);font-size:12.5px;white-space:nowrap}
+select.busca{color-scheme:dark}
+@media(max-width:900px){
+  .topbar{height:auto;flex-direction:column;align-items:stretch;padding:10px 14px;gap:10px;position:static}
+  .brand b{font-size:14px}.tag{display:none}
+  .actions{gap:8px;flex-direction:column;align-items:stretch}
+  .pre,.dts{width:100%;gap:6px}.pre .preset{flex:1;padding:10px 0;font-size:13px}
+  .dts input[type=date]{flex:1 1 0;min-width:0;padding:10px 6px;font-size:12.5px}.dts .mut{display:none}.dts .btn{flex:0 0 auto;padding:10px 14px}
+  .actions>.btn{width:100%;padding:12px 8px}
+  .tabs::-webkit-scrollbar,.toolbar::-webkit-scrollbar{display:none}.tabs,.toolbar{scrollbar-width:none}
+  .main{padding:14px 12px 40px}
+  .status{font-size:11px}
+  .kpis{grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:14px}.kpi{padding:12px 13px}.kpi-v{font-size:17px}.kpi-f{flex-wrap:wrap}
+  .tabs{overflow-x:auto;white-space:nowrap;margin-left:-12px;margin-right:-12px;padding:0 12px;-webkit-overflow-scrolling:touch}.tab{padding:12px 14px;flex-shrink:0;font-size:13px}
+  .toolbar{flex-wrap:nowrap;overflow-x:auto;padding-bottom:6px;-webkit-overflow-scrolling:touch}.busca{width:auto;min-width:210px;flex-shrink:0}.chip{flex-shrink:0;white-space:nowrap;padding:8px 12px}
+  .tbox{display:none}.cards{display:grid;gap:10px}.so-m{display:block}
+  .alertas{grid-template-columns:1fr}.al{padding:14px}.al .it span:first-child{max-width:52%}
+  .ov{padding:0}.modal{border-radius:0;padding:16px 14px 30px;min-height:100vh;width:100%;border:none}
+  .mk{grid-template-columns:repeat(2,1fr)}.dre{grid-template-columns:repeat(2,1fr)}
+  .mh h2{font-size:15px}.mini{max-height:300px}th,td{padding:9px 9px}
+  .aviso{font-size:12px}
+}
+</style>
+</head>
+<body>
+<div class="topbar">
+  <div class="brand"><div class="logo">MZ</div><b>Amazon 2 · Rentabilidade + Ads</b><span class="tag">MZ.cell · BR</span></div>
+  <div class="actions">
+    <div class="pre"><button class="preset" data-d="7">7D</button><button class="preset" data-d="15">15D</button><button class="preset on" data-d="30">30D</button><button class="preset" data-d="60">60D</button></div>
+    <div class="dts"><input type="date" id="de"><span class="mut">→</span><input type="date" id="ate"><button class="btn" id="btnPer">Aplicar</button></div>
+    <button class="btn btn-gold" id="btnAtu">↻ Atualizar dados</button>
+  </div>
+</div>
+<div class="main">
+  <div class="status" id="status"></div>
+  <div id="aviso"></div>
+  <div class="kpis" id="kpis"></div>
+  <div class="tabs" id="tabs"></div>
+  <div id="conteudo"></div>
+</div>
+<div class="ov" id="ov"><div class="modal" id="modal"></div></div>
+
+<script>
+const API = location.origin + '/amazonads';
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const brl = v => v == null ? '—' : v.toLocaleString('pt-BR', {style:'currency', currency:'BRL'});
+const num = v => v == null ? '—' : Math.round(v).toLocaleString('pt-BR');
+const pct = v => v == null ? '—' : (v * 100).toFixed(2).replace('.', ',') + '%';
+const dec = v => v == null ? '—' : v.toFixed(2).replace('.', ',');
+const S = {dados:null, aba:'produtos', busca:'', filtro:'todos', ord:{produtos:['ads.gasto',-1], campanhas:['gasto',-1]}, dias:30, pollando:false};
+const SIT = {lucrando:['Lucrando','p-ok'], acima_equilibrio:['ACOS acima do equilíbrio','p-warn'], prejuizo:['Prejuízo com Ads','p-bad'], sem_venda:['Gasta sem vender','p-bad'],
+             inativo_gastando:['Anúncio não comprável','p-bad'], sem_ads:['Sem Ads','p-mut']};
+
+function get(o, p){ return p.split('.').reduce((a, k) => a == null ? null : a[k], o); }
+function ordenar(lista, [campo, dir]){ return [...lista].sort((a, b) => { const x = get(a, campo), y = get(b, campo); if (x == null && y == null) return 0; if (x == null) return 1; if (y == null) return -1; return (typeof x === 'string' ? x.localeCompare(y) : x - y) * dir; }); }
+function variacao(atual, ant, inverso){ if (ant == null || ant === 0 || atual == null) return ''; const v = (atual - ant) / Math.abs(ant); const bom = inverso ? v < 0 : v > 0; return `<span class="${Math.abs(v) < 0.005 ? 'mut' : bom ? 'up' : 'down'}">${v > 0 ? '▲' : '▼'} ${Math.abs(v * 100).toFixed(1).replace('.', ',')}%</span>`; }
+
+async function api(p, opts){ const r = await fetch(API + p, opts); if (!r.ok) { let m = r.statusText; try { m = (await r.json()).detail || m; } catch(e){} throw new Error(m); } return r.json(); }
+
+function datas(){ return [$('#de').value, $('#ate').value]; }
+function setPreset(d){ S.dias = d; document.querySelectorAll('.preset').forEach(b => b.classList.toggle('on', +b.dataset.d === d)); const ate = new Date(Date.now() - 86400000), de = new Date(ate.getTime() - (d - 1) * 86400000); const f = x => x.toISOString().slice(0, 10); $('#de').value = f(de); $('#ate').value = f(ate); }
+
+async function carregar(){
+  const [de, ate] = datas();
+  try { S.dados = await api(`/dados?de=${de}&ate=${ate}`); $('#aviso').innerHTML = ''; }
+  catch(e){ S.dados = null; $('#kpis').innerHTML = ''; $('#tabs').innerHTML = ''; $('#conteudo').innerHTML = `<div class="vazio">${esc(e.message)}<br><br>Os dados de Ads ficam num cache local. Clique em <b>↻ Atualizar dados</b> (leva alguns minutos).</div>`; return; }
+  desenhar();
+}
+
+function desenhar(){
+  const d = S.dados; if (!d) return;
+  const t = d.totais, a = t.ads, ant = t.ads_anterior;
+  let aviso = '';
+  if (!d.financas.disponivel) aviso += `Margem indisponível: o cache do Finances não cobre este período (${esc(d.financas.motivo || '')}). Clique em Atualizar dados. `;
+  if ((d.erros_coleta || []).length) aviso += `Coleta de Ads parcial: ${esc(d.erros_coleta.join(' | ')).slice(0, 220)}.`;
+  $('#aviso').innerHTML = aviso ? `<div class="aviso">${aviso}</div>` : '';
+  const eq = t.acos_equilibrio, ac = a.acos;
+  const corAcos = ac == null ? 'var(--border2)' : (eq != null && ac > eq) ? 'var(--red)' : 'var(--green)';
+  const k = (l, v, sub, cor) => `<div class="kpi" style="--c:${cor || 'var(--border2)'}"><div class="kpi-l">${l}</div><div class="kpi-v">${v}</div><div class="kpi-f">${sub || ''}</div></div>`;
+  $('#kpis').innerHTML =
+    k('Gasto com Ads', brl(a.gasto), `<span>${brl(t.gasto_dia_medio)}/dia</span>${variacao(a.gasto, ant.gasto, true)}`, 'var(--gold)') +
+    k('Vendas por Ads', brl(a.vendas), `<span>${num(a.pedidos)} pedidos</span>${variacao(a.vendas, ant.vendas)}`, 'var(--blue)') +
+    k('ACOS', pct(ac), `<span>equilíbrio ${pct(eq)}</span>${variacao(ac, ant.acos, true)}`, corAcos) +
+    k('ROAS', dec(a.roas), `<span>CPC ${brl(a.cpc)}</span>${variacao(a.roas, ant.roas)}`, 'var(--purple)') +
+    k('TACOS', pct(t.tacos), `<span>Ads ÷ venda total</span>`, 'var(--orange)') +
+    k('Margem antes do Ads', brl(t.margem), `<span>receita líq. ${brl(t.receita_liquida)}</span>`, 'var(--green)') +
+    k('Margem após Ads', `<span class="${t.margem_apos_ads < 0 ? 'down' : 'up'}">${brl(t.margem_apos_ads)}</span>`, `<span>${t.receita_liquida ? pct(t.margem_apos_ads / t.receita_liquida) : '—'} da receita líq.</span>`, t.margem_apos_ads < 0 ? 'var(--red)' : 'var(--green)') +
+    k('Campanhas ativas', `${t.campanhas_ativas}<span class="mut" style="font-size:13px"> / ${t.campanhas_total}</span>`, `<span>orç. ${brl(t.orcamento_ativo)}/dia</span><span>${a.cliques ? num(a.cliques) + ' cliques' : ''}</span>`, 'var(--gold2)');
+  const n = d.alertas, nal = n.inativo_gastando.length + n.sem_venda.length + n.acos_alto.length;
+  $('#tabs').innerHTML = [['produtos', 'Produtos (ASIN)', d.asins.length], ['campanhas', 'Campanhas', d.campanhas.length], ['alertas', 'Alertas e oportunidades', nal]]
+    .map(([id, nome, c]) => `<div class="tab ${S.aba === id ? 'on' : ''}" onclick="aba('${id}')">${nome} <span class="badge ${id === 'alertas' && c ? 'r' : ''}">${c}</span></div>`).join('');
+  S.aba === 'produtos' ? tabelaProdutos() : S.aba === 'campanhas' ? tabelaCampanhas() : tabelaAlertas();
+}
+function aba(id){ S.aba = id; desenhar(); }
+
+function toolbarFiltros(){
+  const cont = {}; S.dados.asins.forEach(l => cont[l.situacao] = (cont[l.situacao] || 0) + 1);
+  const chips = [['todos', 'Todos', S.dados.asins.length], ...Object.keys(SIT).filter(k => cont[k]).map(k => [k, SIT[k][0], cont[k]])];
+  const op = [['ads.gasto', 'Gasto Ads'], ['ads.vendas', 'Vendas Ads'], ['margem_apos_ads', 'Margem após Ads'], ['ads.acos', 'ACOS'], ['receita_liquida', 'Receita líq.']];
+  return `<div class="toolbar"><input class="busca" placeholder="Buscar por título, ASIN ou SKU..." value="${esc(S.busca)}" oninput="S.busca=this.value;corpoProdutos()">` +
+    `<select class="busca so-m" onchange="S.ord.produtos=[this.value,-1];tabelaProdutos()">${op.map(([v, n]) => `<option value="${v}" ${S.ord.produtos[0] === v ? 'selected' : ''}>Ordenar: ${n}</option>`).join('')}</select>` +
+    chips.map(([k, n, c]) => `<div class="chip ${S.filtro === k ? 'on' : ''}" onclick="S.filtro='${k}';tabelaProdutos()">${n} <span class="badge">${c}</span></div>`).join('') + `</div>`;
+}
+function cab(id, rot, tab){ const [c, d] = S.ord[tab]; return `<th onclick="ordPor('${tab}','${id}')">${rot}${c === id ? (d < 0 ? ' ▼' : ' ▲') : ''}</th>`; }
+function ordPor(tab, id){ const o = S.ord[tab]; S.ord[tab] = [id, o[0] === id ? -o[1] : -1]; tab === 'produtos' ? tabelaProdutos() : tabelaCampanhas(); }
+
+function listaProdutos(){
+  const q = S.busca.toLowerCase();
+  const L = S.dados.asins.filter(l => (S.filtro === 'todos' || l.situacao === S.filtro) && (!q || (l.titulo + l.asin + l.skus.join(' ')).toLowerCase().includes(q)));
+  return ordenar(L, S.ord.produtos);
+}
+function recCls(l){ return 'rec-' + (l.recomendacao ? l.recomendacao.tom : 'neutro'); }
+function cardsProdutos(){
+  return listaProdutos().map(l => {
+    const s = SIT[l.situacao], ad = l.ads;
+    const cor = {lucrando:'var(--green)', acima_equilibrio:'var(--gold)', prejuizo:'var(--red)', sem_venda:'var(--red)', inativo_gastando:'var(--red)', sem_ads:'var(--border2)'}[l.situacao];
+    const cb = l.comprave === false ? '<span class="pill p-bad">não comprável</span>' : l.comprave ? '<span class="pill p-ok">comprável</span>' : '';
+    return `<div class="cardp" style="--c:${cor}" onclick="abrirAsin('${l.asin}')"><div class="t1">${esc(l.titulo || l.asin)}</div>
+      <div class="t2">${esc(l.asin)} · ${l.skus.map(x => `<span class="sk">${esc(x)}</span>`).join('')}</div>
+      <div class="pills"><span class="pill ${s[1]}">${s[0]}</span>${cb}<span class="pill p-mut">${l.n_campanhas_ativas}/${l.n_campanhas} camp.</span></div>
+      <div class="g"><div><small>Gasto Ads</small><b>${brl(ad.gasto)}</b></div><div><small>Vendas Ads</small><b>${brl(ad.vendas)}</b></div>
+      <div><small>ACOS</small><b class="${l.acos_equilibrio != null && ad.acos != null ? (ad.acos > l.acos_equilibrio ? 'down' : 'up') : ''}">${pct(ad.acos)}</b></div>
+      <div><small>Receita líq.</small><b>${brl(l.receita_liquida)}</b></div><div><small>Margem</small><b>${brl(l.margem)}</b></div>
+      <div><small>Após Ads</small><b class="${l.margem_apos_ads != null ? (l.margem_apos_ads < 0 ? 'down' : 'up') : ''}">${brl(l.margem_apos_ads)}</b></div>
+      <div><small>TACOS</small><b>${pct(l.tacos)}</b></div><div><small>ACOS equil.</small><b>${pct(l.acos_equilibrio)}</b></div><div><small>ROAS</small><b>${dec(ad.roas)}</b></div></div>
+      <div class="rec ${recCls(l)}"><b>${esc(l.recomendacao.acao)}</b><span>${esc(l.recomendacao.motivo)}</span></div></div>`;
+  }).join('') || '<div class="vazio">Nenhum produto neste filtro.</div>';
+}
+function linhasProdutos(){
+  return listaProdutos().map(l => {
+    const s = SIT[l.situacao], ad = l.ads;
+    const cb = l.comprave === false ? '<span class="pill p-bad">não comprável</span>' : l.comprave ? '<span class="pill p-ok">comprável</span>' : '<span class="pill p-mut">?</span>';
+    return `<tr class="lin" onclick="abrirAsin('${l.asin}')">
+      <td class="nome"><div class="t1">${esc(l.titulo || '(sem título no Finances)')}</div><div class="t2">${esc(l.asin)} · ${l.skus.map(x => `<span class="sk">${esc(x)}</span>`).join('')}</div></td>
+      <td>${cb}</td><td><span class="pill ${s[1]}">${s[0]}</span></td>
+      <td>${brl(l.receita_liquida)}</td><td>${l.un == null ? '—' : num(l.un)}</td>
+      <td>${brl(l.margem)}${l.margem_completa === false ? ' <span class="warn" title="falta custo em algum SKU">*</span>' : ''}</td>
+      <td>${brl(ad.gasto)}</td><td>${brl(ad.vendas)}</td><td>${num(ad.cliques)}</td>
+      <td class="${l.acos_equilibrio != null && ad.acos != null ? (ad.acos > l.acos_equilibrio ? 'down' : 'up') : ''}">${pct(ad.acos)}</td><td class="mut">${pct(l.acos_equilibrio)}</td>
+      <td>${dec(ad.roas)}</td><td>${pct(l.tacos)}</td>
+      <td class="${l.margem_apos_ads != null ? (l.margem_apos_ads < 0 ? 'down' : 'up') : ''}"><b>${brl(l.margem_apos_ads)}</b></td><td>${pct(l.margem_apos_ads_pct)}</td>
+      <td>${l.n_campanhas_ativas}<span class="mut">/${l.n_campanhas}</span></td>
+      <td class="recc"><div class="rec ${recCls(l)}"><b>${esc(l.recomendacao.acao)}</b><span>${esc(l.recomendacao.motivo)}</span></div></td></tr>`;
+  }).join('') || '<tr><td colspan="17" class="vazio">Nenhum produto neste filtro.</td></tr>';
+}
+function corpoProdutos(){ const b = $('#corpoProd'); if (b) b.innerHTML = linhasProdutos(); const c = $('#cardsProd'); if (c) c.innerHTML = cardsProdutos(); }
+function tabelaProdutos(){
+  $('#conteudo').innerHTML = toolbarFiltros() + `<div class="tbox"><table><thead><tr>${cab('titulo', 'Produto', 'produtos')}${cab('comprave', 'Anúncio', 'produtos')}${cab('situacao', 'Situação', 'produtos')}${cab('receita_liquida', 'Receita líq.', 'produtos')}${cab('un', 'Un', 'produtos')}${cab('margem', 'Margem', 'produtos')}${cab('ads.gasto', 'Gasto Ads', 'produtos')}${cab('ads.vendas', 'Vendas Ads', 'produtos')}${cab('ads.cliques', 'Cliques', 'produtos')}${cab('ads.acos', 'ACOS', 'produtos')}${cab('acos_equilibrio', 'ACOS equil.', 'produtos')}${cab('ads.roas', 'ROAS', 'produtos')}${cab('tacos', 'TACOS', 'produtos')}${cab('margem_apos_ads', 'Margem após Ads', 'produtos')}${cab('margem_apos_ads_pct', '% mg.', 'produtos')}${cab('n_campanhas', 'Campanhas', 'produtos')}<th>Recomendação</th></tr></thead><tbody id="corpoProd">${linhasProdutos()}</tbody></table></div>
+    <div class="cards" id="cardsProd">${cardsProdutos()}</div>
+    <div class="nota">ACOS de equilíbrio = margem antes do Ads ÷ receita líquida: se o ACOS passa disso, cada venda por Ads dá prejuízo. “Margem após Ads” desconta o gasto de Ads da margem de contribuição. * margem incompleta (falta custo cadastrado). Clique numa linha para ver todas as campanhas do produto.</div>`;
+}
+
+function tabelaCampanhas(){
+  const L = ordenar(S.dados.campanhas, S.ord.campanhas);
+  const est = e => e === 'ENABLED' ? '<span class="pill p-ok">Ativa</span>' : e === 'PAUSED' ? '<span class="pill p-warn">Pausada</span>' : '<span class="pill p-mut">Arquivada</span>';
+  const linhas = L.map(c => `<tr><td class="nome"><div class="t1">${esc(c.nome)}</div><div class="t2">${esc(c.tipo || '')} · ${c.asins.length} ASIN(s): ${esc(c.asins.slice(0, 3).join(', '))}${c.asins.length > 3 ? '…' : ''}</div></td>
+    <td>${est(c.estado)}</td><td>${brl(c.orcamento)}</td><td>${brl(c.gasto_dia)}</td>
+    <td class="${(c.uso_orcamento || 0) >= .9 ? 'warn' : ''}">${pct(c.uso_orcamento)}</td>
+    <td>${brl(c.gasto)}</td><td>${brl(c.vendas)}</td><td>${num(c.impressoes)}</td><td>${num(c.cliques)}</td><td>${pct(c.ctr)}</td><td>${brl(c.cpc)}</td><td>${num(c.pedidos)}</td>
+    <td class="${c.acos == null ? 'mut' : c.acos > .4 ? 'down' : c.acos < .2 ? 'up' : 'warn'}">${pct(c.acos)}</td><td>${dec(c.roas)}</td><td>${pct(c.topo_busca)}</td></tr>`).join('');
+  const cartoes = L.map(c => `<div class="cardp" style="--c:${c.estado === 'ENABLED' ? 'var(--green)' : 'var(--border2)'}"><div class="t1">${esc(c.nome)}</div>
+      <div class="t2">${esc(c.tipo || '')} · ${c.asins.length} ASIN(s)</div><div class="pills">${est(c.estado)}<span class="pill p-mut">orç. ${brl(c.orcamento)}/dia</span></div>
+      <div class="g"><div><small>Gasto</small><b>${brl(c.gasto)}</b></div><div><small>Vendas</small><b>${brl(c.vendas)}</b></div>
+      <div><small>ACOS</small><b class="${c.acos == null ? 'mut' : c.acos > .4 ? 'down' : c.acos < .2 ? 'up' : 'warn'}">${pct(c.acos)}</b></div>
+      <div><small>Uso orç.</small><b class="${(c.uso_orcamento || 0) >= .9 ? 'warn' : ''}">${pct(c.uso_orcamento)}</b></div><div><small>Cliques</small><b>${num(c.cliques)}</b></div><div><small>CPC</small><b>${brl(c.cpc)}</b></div></div></div>`).join('');
+  const op = [['gasto', 'Gasto'], ['vendas', 'Vendas'], ['acos', 'ACOS'], ['uso_orcamento', 'Uso do orçamento'], ['cliques', 'Cliques']];
+  $('#conteudo').innerHTML = `<div class="toolbar so-m"><select class="busca so-m" onchange="S.ord.campanhas=[this.value,-1];tabelaCampanhas()">${op.map(([v, n]) => `<option value="${v}" ${S.ord.campanhas[0] === v ? 'selected' : ''}>Ordenar: ${n}</option>`).join('')}</select></div><div class="cards">${cartoes}</div><div class="tbox"><table><thead><tr>${cab('nome', 'Campanha', 'campanhas')}${cab('estado', 'Estado', 'campanhas')}${cab('orcamento', 'Orçamento/dia', 'campanhas')}${cab('gasto_dia', 'Gasto/dia', 'campanhas')}${cab('uso_orcamento', 'Uso do orç.', 'campanhas')}${cab('gasto', 'Gasto', 'campanhas')}${cab('vendas', 'Vendas', 'campanhas')}${cab('impressoes', 'Impr.', 'campanhas')}${cab('cliques', 'Cliques', 'campanhas')}${cab('ctr', 'CTR', 'campanhas')}${cab('cpc', 'CPC', 'campanhas')}${cab('pedidos', 'Pedidos', 'campanhas')}${cab('acos', 'ACOS', 'campanhas')}${cab('roas', 'ROAS', 'campanhas')}${cab('topo_busca', 'Topo da busca', 'campanhas')}</tr></thead><tbody>${linhas}</tbody></table></div>
+    <div class="nota">Vendas atribuídas em 14 dias (padrão da Amazon). “Uso do orçamento” = gasto médio por dia ÷ orçamento diário; acima de 90% a campanha costuma ficar sem verba durante o dia. “Topo da busca” = participação média nas impressões do topo dos resultados.</div>`;
+}
+
+function listaAl(titulo, desc, itens, fmt, cor){
+  return `<div class="al"><h3>${titulo}<span class="pill ${itens.length ? cor : 'p-mut'}">${itens.length}</span></h3><p>${desc}</p>${itens.slice(0, 12).map(fmt).join('') || '<div class="mut" style="font-size:12px">Nada por aqui. 👍</div>'}${itens.length > 12 ? `<div class="mut" style="font-size:11px;padding-top:8px">+ ${itens.length - 12} outros</div>` : ''}</div>`;
+}
+function tabelaAlertas(){
+  const a = S.dados.alertas;
+  $('#conteudo').innerHTML = `<div class="alertas">` +
+    listaAl('🚫 Gastando com anúncio não comprável', 'O produto tem Ads rodando, mas o anúncio não está comprável (sem estoque, bloqueio ou inativo). O gasto não converte: vale pausar a campanha enquanto não voltar.', a.inativo_gastando, x => `<div class="it"><span>${esc(x.titulo || x.asin)} <span class="mut">(${esc(x.skus.join(', '))})</span></span><span>${brl(x.gasto)}</span></div>`, 'p-bad') +
+    listaAl('💸 Campanhas ativas gastando sem vender', 'Gasto de pelo menos R$ 20,00 no período e nenhum pedido atribuído.', a.sem_venda, x => `<div class="it"><span>${esc(x.campanha)}</span><span>${brl(x.gasto)} · ${num(x.cliques)} cliques</span></div>`, 'p-bad') +
+    listaAl('📈 ACOS acima de 40%', 'Campanhas com ACOS alto e gasto relevante. Compare com o ACOS de equilíbrio do produto na aba Produtos.', a.acos_alto, x => `<div class="it"><span>${esc(x.campanha)}</span><span>${pct(x.acos)} · ${brl(x.gasto)}</span></div>`, 'p-warn') +
+    listaAl('⛽ Orçamento no limite', 'Campanhas ativas que gastam 90% ou mais do orçamento diário. Se o ACOS for bom, vale aumentar a verba.', a.orcamento_estourado, x => `<div class="it"><span>${esc(x.campanha)}</span><span>${pct(x.uso)} de ${brl(x.orcamento)} · ACOS ${pct(x.acos)}</span></div>`, 'p-blue') +
+    listaAl('🔇 Termos de busca que gastam sem converter', 'Últimos 30 dias: gasto ≥ R$ 5,00, 8+ cliques e nenhuma venda. Candidatos a palavra-chave negativa.', a.termos_sem_conversao, x => `<div class="it"><span>“${esc(x.termo)}” <span class="mut">· ${esc(x.campanha)}</span></span><span>${brl(x.gasto)} · ${x.cliques} cliques</span></div>`, 'p-warn') +
+    listaAl('🏆 Termos campeões', 'Últimos 30 dias: 2+ pedidos e ACOS abaixo de 25% em segmentação automática. Candidatos a palavra-chave exata nas campanhas manuais.', a.termos_campeoes, x => `<div class="it"><span>“${esc(x.termo)}” <span class="mut">· ${esc(x.campanha)}</span></span><span>${brl(x.vendas)} · ACOS ${pct(x.acos)}</span></div>`, 'p-ok') +
+    `</div><div class="nota">Só leitura: este painel não cria, pausa nem altera nenhuma campanha. As sugestões são pontos de partida para você decidir.</div>`;
+}
+
+function grafico(serie){
+  const W = 960, H = 190, P = 30, B = 22; const max = Math.max(1, ...serie.map(d => Math.max(d.gasto, d.vendas)));
+  const bw = (W - 2 * P) / serie.length; const y = v => H - B - (v / max) * (H - B - 14);
+  const barras = serie.map((d, i) => `<rect x="${P + i * bw + bw * .18}" y="${y(d.gasto)}" width="${bw * .64}" height="${H - B - y(d.gasto)}" fill="#f6c90e" opacity=".85"><title>${d.dia}: gasto ${brl(d.gasto)}</title></rect>`).join('');
+  const linha = serie.map((d, i) => `${i ? 'L' : 'M'}${P + i * bw + bw / 2},${y(d.vendas)}`).join(' ');
+  const pts = serie.map((d, i) => `<circle cx="${P + i * bw + bw / 2}" cy="${y(d.vendas)}" r="2.6" fill="#3b82f6"><title>${d.dia}: vendas por Ads ${brl(d.vendas)} · ${d.pedidos} pedidos</title></circle>`).join('');
+  const eixo = serie.map((d, i) => (i % Math.ceil(serie.length / 10) === 0) ? `<text x="${P + i * bw + bw / 2}" y="${H - 6}" fill="#6b7280" font-size="10" text-anchor="middle">${d.dia.slice(8)}/${d.dia.slice(5, 7)}</text>` : '').join('');
+  const grade = [0, .5, 1].map(f => `<line x1="${P}" x2="${W - P}" y1="${y(max * f)}" y2="${y(max * f)}" stroke="rgba(255,255,255,.07)"/><text x="${P - 4}" y="${y(max * f) + 3}" fill="#6b7280" font-size="9" text-anchor="end">${Math.round(max * f)}</text>`).join('');
+  return `<div class="leg"><span><i style="background:#f6c90e"></i>Gasto com Ads</span><span><i style="background:#3b82f6"></i>Vendas atribuídas</span></div><svg viewBox="0 0 ${W} ${H}" style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:12px">${grade}${barras}<path d="${linha}" fill="none" stroke="#3b82f6" stroke-width="2"/>${pts}${eixo}</svg>`;
+}
+
+async function abrirAsin(asin){
+  const l = S.dados.asins.find(x => x.asin === asin); const [de, ate] = datas();
+  $('#modal').innerHTML = '<div class="vazio">Carregando…</div>'; $('#ov').classList.add('on');
+  let d; try { d = await api(`/asin?asin=${asin}&de=${de}&ate=${ate}`); } catch(e){ $('#modal').innerHTML = `<div class="vazio">${esc(e.message)}</div>`; return; }
+  const m = d.ads, s = SIT[l.situacao];
+  const kp = (lb, v, c) => `<div class="kpi" style="--c:${c || 'var(--border2)'}"><div class="kpi-l">${lb}</div><div class="kpi-v">${v}</div></div>`;
+  const est = e => e === 'ENABLED' ? '<span class="pill p-ok">Ativa</span>' : e === 'PAUSED' ? '<span class="pill p-warn">Pausada</span>' : '<span class="pill p-mut">Arquivada</span>';
+  const tCamp = d.campanhas.map(c => `<tr><td class="nome"><div class="t1">${esc(c.nome)}</div><div class="t2">${esc(c.grupos.join(', '))} · ${esc(c.tipo || '')}</div></td><td>${est(c.estado)}</td><td>${brl(c.orcamento)}</td><td>${brl(c.gasto)}</td><td>${pct(c.participacao_gasto)}</td><td>${brl(c.vendas)}</td><td>${num(c.cliques)}</td><td>${pct(c.ctr)}</td><td>${brl(c.cpc)}</td><td>${num(c.pedidos)}</td><td class="${c.acos == null ? 'mut' : c.acos > .4 ? 'down' : c.acos < .2 ? 'up' : 'warn'}">${pct(c.acos)}</td><td>${dec(c.roas)}</td></tr>`).join('');
+  const tAlv = d.alvos.map(x => `<tr><td class="nome"><div class="t1">${esc(x.alvo)}</div><div class="t2">${esc(x.tipo)} · ${esc(x.campanha)}</div></td><td>${num(x.impressoes)}</td><td>${num(x.cliques)}</td><td>${brl(x.gasto)}</td><td>${num(x.pedidos)}</td><td>${brl(x.vendas)}</td><td class="${x.acos == null ? 'mut' : x.acos > .4 ? 'down' : 'up'}">${pct(x.acos)}</td></tr>`).join('');
+  const tTer = d.termos.map(x => `<tr><td class="nome"><div class="t1">${esc(x.termo)}</div><div class="t2">${esc(x.tipo)} · ${esc(x.campanha)}</div></td><td>${num(x.impressoes)}</td><td>${num(x.cliques)}</td><td>${brl(x.gasto)}</td><td>${num(x.pedidos)}</td><td>${brl(x.vendas)}</td><td class="${x.acos == null ? 'mut' : x.acos > .4 ? 'down' : 'up'}">${pct(x.acos)}</td></tr>`).join('');
+  const cabC = '<th>Campanha</th><th>Estado</th><th>Orç./dia</th><th>Gasto</th><th>% da camp.</th><th>Vendas</th><th>Cliques</th><th>CTR</th><th>CPC</th><th>Pedidos</th><th>ACOS</th><th>ROAS</th>';
+  const cabA = '<th>Alvo / termo</th><th>Impr.</th><th>Cliques</th><th>Gasto</th><th>Pedidos</th><th>Vendas</th><th>ACOS</th>';
+  $('#modal').innerHTML = `
+    <div class="mh"><div style="min-width:0"><h2>${esc(l.titulo || l.asin)}</h2>
+      <div class="t2" style="font-size:12px">${esc(l.asin)} · ${l.skus.map(x => `<span class="sk">${esc(x)}</span>`).join('')} <span class="pill ${s[1]}">${s[0]}</span> ${l.comprave === false ? '<span class="pill p-bad">anúncio não comprável</span>' : ''}</div></div>
+      <button class="x" onclick="fechar()">✕</button></div>
+    <div class="mk">${kp('Gasto com Ads', brl(m.gasto), 'var(--gold)')}${kp('Vendas por Ads', brl(m.vendas), 'var(--blue)')}${kp('ACOS', pct(m.acos), l.acos_equilibrio != null && m.acos != null && m.acos > l.acos_equilibrio ? 'var(--red)' : 'var(--green)')}${kp('ROAS', dec(m.roas), 'var(--purple)')}
+      ${kp('Impressões', num(m.impressoes))}${kp('Cliques', num(m.cliques))}${kp('CTR', pct(m.ctr))}${kp('CPC', brl(m.cpc))}</div>
+    <div class="sec"><span>Recomendação</span></div><div class="rec ${recCls(l)}"><b>${esc(l.recomendacao.acao)}</b><span>${esc(l.recomendacao.motivo)}</span></div>
+    <div class="sec"><span>Resultado do produto no período</span></div>
+    <div class="dre"><div><small>Receita líquida</small><b>${brl(l.receita_liquida)}</b></div><div><small>Unidades</small><b>${l.un == null ? '—' : num(l.un)}</b></div><div><small>Margem antes do Ads</small><b>${brl(l.margem)}</b></div>
+      <div><small>Gasto com Ads</small><b>${brl(m.gasto)}</b></div><div><small>Margem após Ads</small><b class="${l.margem_apos_ads < 0 ? 'down' : 'up'}">${brl(l.margem_apos_ads)}</b></div><div><small>ACOS de equilíbrio</small><b>${pct(l.acos_equilibrio)}</b></div></div>
+    <div class="sec"><span>Gasto e vendas por dia</span></div>${grafico(d.serie)}
+    <div class="sec"><span>Campanhas deste produto (${d.campanhas.length})</span></div><div class="mini"><table><thead><tr>${cabC}</tr></thead><tbody>${tCamp || '<tr><td colspan="12" class="vazio">Sem campanhas com Ads neste período.</td></tr>'}</tbody></table></div>
+    <div class="sec"><span>Palavras-chave e alvos (30 dias)</span></div><div class="mini"><table><thead><tr>${cabA}</tr></thead><tbody>${tAlv || '<tr><td colspan="7" class="vazio">Sem dados.</td></tr>'}</tbody></table></div>
+    <div class="sec"><span>Termos de busca dos clientes (30 dias)</span></div><div class="mini"><table><thead><tr>${cabA}</tr></thead><tbody>${tTer || '<tr><td colspan="7" class="vazio">Sem dados.</td></tr>'}</tbody></table></div>
+    <div class="nota">${esc(d.nota_alvos)}</div>`;
+}
+function fechar(){ $('#ov').classList.remove('on'); }
+$('#ov').addEventListener('click', e => { if (e.target.id === 'ov') fechar(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') fechar(); });
+
+async function estadoPoll(){
+  let e; try { e = await api('/estado'); } catch(x){ return; }
+  const a = e.ads, f = e.financas, rodando = a.rodando || f.rodando;
+  const pctAds = a.total ? Math.round(100 * a.feito / a.total) : 0;
+  const cache = a.cache ? new Date(a.cache.gerado_em).toLocaleString('pt-BR') : 'nunca';
+  const fcache = f.cache_gerado_em ? new Date(f.cache_gerado_em).toLocaleString('pt-BR') : 'nunca';
+  $('#status').innerHTML = `<span class="dot ${rodando ? 'run' : (a.erro || f.erro) ? 'err' : ''}"></span>` +
+    (rodando ? `<span>Atualizando: Ads — ${esc(a.fase)} ${a.total ? `(${a.feito}/${a.total})` : ''} · Finances — ${f.rodando ? esc(f.etapa || 'em andamento') : 'ok'}</span><div class="barra"><i style="width:${pctAds}%"></i></div>`
+             : `<span>Ads atualizados em ${cache} · Finances em ${fcache}${a.erro ? ` · <span class="warn">${esc(a.erro)}</span>` : ''}${f.erro ? ` · <span class="down">Finances: ${esc(f.erro)}</span>` : ''}</span>`);
+  $('#btnAtu').disabled = rodando;
+  if (rodando){ S.pollando = true; setTimeout(estadoPoll, 4000); }
+  else if (S.pollando){ S.pollando = false; carregar(); }
+}
+$('#btnAtu').onclick = async () => { try { await api('/atualizar', {method:'POST'}); } catch(e){ alert(e.message); return; } estadoPoll(); };
+$('#btnPer').onclick = () => { document.querySelectorAll('.preset').forEach(b => b.classList.remove('on')); carregar(); };
+document.querySelectorAll('.preset').forEach(b => b.onclick = () => { setPreset(+b.dataset.d); carregar(); });
+setPreset(30); carregar(); estadoPoll();
+</script>
+</body>
+</html>

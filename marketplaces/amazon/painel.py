@@ -65,10 +65,8 @@ def _atualizar(conta: str, dias: int):
         dados = {"gerado_em": datetime.now(BRT).isoformat(timespec="seconds"),
                  "de": ini.astimezone(BRT).date().isoformat(), "ate": fim.astimezone(BRT).date().isoformat(),
                  "por_dia": por_dia, "titulos": titulos}
-        tmp = _caminho(conta) + ".tmp"
-        with open(tmp, "w", encoding="utf-8") as f:
-            json.dump(dados, f, ensure_ascii=False)
-        os.replace(tmp, _caminho(conta))
+        from marketplaces.amazon import ads_api
+        ads_api.gravar_json(_caminho(conta), dados)
         _estado[conta].update(erro=None, etapa="concluído")
     except Exception as e:
         _estado[conta].update(erro=api.mascarar(f"{type(e).__name__}: {e}")[:300], etapa="falhou")
