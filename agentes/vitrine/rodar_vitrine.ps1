@@ -43,6 +43,11 @@ if ((Test-Path $feitas) -and ((Get-Content $feitas) -contains $rodada)) { exit 0
 if ($LASTEXITCODE -ne 0) { & $py -m agentes.vitrine.vitrine vigia 2>&1 | ParaLog; exit 0 }   # fora da janela: só o freio
 if (Test-Path (Join-Path $PSScriptRoot "PARAR")) { Log "PARAR presente: rodada não feita"; & $py -m agentes.vitrine.vitrine vigia 2>&1 | ParaLog; exit 0 }
 
+# nunca dois agentes ao mesmo tempo (ex.: rodada -Extra ainda rodando quando chega o horário fixo): o novo disparo sai
+$outro = Get-CimInstance Win32_Process -Filter "Name like 'claude%' or Name like 'node%'" -ErrorAction SilentlyContinue |
+    Where-Object { $_.CommandLine -like "*Você é o agente Vitrine*" -or $_.CommandLine -like "*agente Vitrine*" }
+if ($outro) { Log "rodada $rodada adiada: outra rodada do Vitrine ainda está rodando (PID $($outro[0].ProcessId))"; exit 0 }
+
 function Concluida {
     $arq = Join-Path $dados "rodadas.jsonl"
     $ok = (Test-Path $arq) -and (Select-String -Path $arq -SimpleMatch ('"rodada": "' + $rodada + '"') -Quiet)
