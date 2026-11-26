@@ -35,6 +35,13 @@ class Montador(unittest.TestCase):
         it = {"peso_kg": 0.5, "dims_cm": [31.5, 23.9, 4.8], "manual": {"por_caixa": 15}}
         self.assertEqual(C.capacidade(it), 15)
 
+    def test_volume_grande_vai_sozinho_na_propria_embalagem(self):
+        base = dict(self.BASE, ARV={"peso_kg": 7.0, "dims_cm": [100.0, 30.0, 20.0]})
+        caixas = C.montar({"ARV": 3, "CTRL": 5}, base)
+        arv = [c for c in caixas if "ARV" in c["itens"]]
+        self.assertEqual(len(arv), 3)
+        self.assertTrue(all(c["itens"] == {"ARV": 1} and c["dim"] == "100x30x20" and c["peso"] == 7.0 for c in arv))
+
     def test_opcoes_no_formato_do_envio(self):
         op = C.opcoes_caixa([{"itens": {"CTRL": 40}, "peso": 10.5}, {"itens": {"CTRL": 40}, "peso": 10.5}])
         self.assertEqual(op, ["2;57x33x33;10.5;CTRL=40"])

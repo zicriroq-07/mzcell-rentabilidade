@@ -41,9 +41,24 @@ def cabe_por_geometria(dims, caixa=CAIXA_CM) -> int:
     return max(grade, min(vol, grade * 2)) if grade else 0
 
 
+def grande_demais(item: dict) -> bool:
+    """Embalagem que não entra na caixa padrão em nenhuma orientação: segue sozinha, na própria caixa."""
+    d = item.get("dims_cm")
+    return bool(d) and min(d) > 0 and cabe_por_geometria(d) == 0
+
+
+def dim_volume(sku: str, base: dict) -> str:
+    it = base.get(sku) or {}
+    if grande_demais(it):
+        return "x".join(str(math.ceil(v)) for v in sorted(it["dims_cm"], reverse=True))
+    return "x".join(str(v) for v in CAIXA_CM)
+
+
 def capacidade(item: dict) -> int:
     """Máximo por caixa: o que já coube de verdade (histórico/manual) ou a geometria; nunca acima do peso de 22 kg."""
     peso = float(item.get("peso_kg") or 0)
+    if grande_demais(item):
+        return 1                                   # vai na própria embalagem, um por volume (ex.: árvore de 100 cm)
     manual = (item.get("manual") or {}).get("por_caixa")
     # o histórico é o que coube numa caixa já enviada (piso, nem sempre a caixa estava cheia): vale o maior dos dois
     por = int(manual) if manual else max(int(item.get("por_caixa") or 0), cabe_por_geometria(item.get("dims_cm")))
@@ -67,15 +82,21 @@ def montar(pedido: dict, base: dict) -> list:
             sobras.append((sku, resto, resto / cap))
     mistas = []
     for sku, q, frac in sorted(sobras, key=lambda x: -x[2]):
+        if grande_demais(base[sku]):
+            mistas.append({"itens": {sku: q}, "_frac": 1.0, "_peso": 0}); continue
         peso = q * float(base[sku]["peso_kg"])
         for m in mistas:
+            if any(grande_demais(base[s]) for s in m["itens"]):
+                continue
             if m["_frac"] + frac <= 1.0 and m["_peso"] + peso <= PESO_MAX - TARA:
                 m["itens"][sku] = q; m["_frac"] += frac; m["_peso"] += peso
                 break
         else:
             mistas.append({"itens": {sku: q}, "_frac": frac, "_peso": peso})
     for c in caixas + mistas:
-        c["peso"] = round(TARA + sum(q * float(base[s]["peso_kg"]) for s, q in c["itens"].items()), 1)
+        propria = len(c["itens"]) == 1 and grande_demais(base[next(iter(c["itens"]))])
+        c["dim"] = dim_volume(next(iter(c["itens"])), base) if propria else "x".join(str(v) for v in CAIXA_CM)
+        c["peso"] = round((0 if propria else TARA) + sum(q * float(base[s]["peso_kg"]) for s, q in c["itens"].items()), 1)
         c.pop("_frac", None); c.pop("_peso", None)
     return caixas + mistas
 
@@ -83,11 +104,11 @@ def montar(pedido: dict, base: dict) -> list:
 def opcoes_caixa(caixas: list) -> list:
     """Agrupa caixas iguais no formato do envio_fba: "N;57x33x33;peso;SKU=q,SKU2=q"."""
     grupos = {}
+    padrao = "x".join(str(v) for v in CAIXA_CM)
     for c in caixas:
-        chave = (tuple(sorted(c["itens"].items())), c["peso"])
+        chave = (tuple(sorted(c["itens"].items())), c["peso"], c.get("dim", padrao))
         grupos[chave] = grupos.get(chave, 0) + 1
-    dim = "x".join(str(v) for v in CAIXA_CM)
-    return [f"{n};{dim};{peso};" + ",".join(f"{s}={q}" for s, q in itens) for (itens, peso), n in grupos.items()]
+    return [f"{n};{dim};{peso};" + ",".join(f"{s}={q}" for s, q in itens) for (itens, peso, dim), n in grupos.items()]
 
 
 # ---------- base em disco e coleta ----------
@@ -148,7 +169,9 @@ def atualizar_base(conta: str, progresso=print) -> dict:
             if len(itens) != 1 or not (cx.get("weight") or {}).get("value"):
                 continue
             sku, q = itens[0]["msku"], int(itens[0]["quantity"])
-            peso_un = round((_kg(cx["weight"]) - TARA) / q, 3)
+            dcx = cx.get("dimensions") or {}
+            fora = max(_cm(dict(dcx, value=dcx.get(k))) for k in ("length", "width", "height")) > max(CAIXA_CM) if dcx else False
+            peso_un = round((_kg(cx["weight"]) - (0 if fora else TARA)) / q, 3)   # volume na própria embalagem: sem papelão extra
             h = b.setdefault(sku, {}).setdefault("historico", {"por_caixa": 0, "peso_kg": peso_un})
             if q >= h["por_caixa"]:
                 h["por_caixa"], h["peso_kg"] = q, peso_un
@@ -194,7 +217,7 @@ def main(argv=None):
         pedido = {s.split("=")[0]: int(s.split("=")[1]) for s in argv[2:]}
         caixas = montar(pedido, b)
         for i, c in enumerate(caixas, 1):
-            print(f"  caixa {i}: " + " + ".join(f"{s} {q}" for s, q in c["itens"].items()) + f"  ·  {c['peso']} kg")
+            print(f"  caixa {i}: " + " + ".join(f"{s} {q}" for s, q in c["itens"].items()) + f"  ·  {c['peso']} kg  ·  {c['dim']} cm")
         print(f"  total: {len(caixas)} caixas · {sum(pedido.values())} unidades")
         print("  opções para o envio_fba: " + " ".join(f'--caixa "{o}"' for o in opcoes_caixa(caixas)))
         return 0
