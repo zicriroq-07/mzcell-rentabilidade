@@ -6,7 +6,8 @@
 #                na rodada de fechamento (20h) também precisa ter saído o resumo do dia por e-mail.
 # -Modo vigia  : só o freio, sem IA (PARAR, teto de gasto, fim do mandato). A cada 2 horas.
 # ("diario" continua aceito como sinônimo de "rodada", para tarefas antigas.)
-param([ValidateSet("rodada", "diario", "vigia")][string]$Modo = "rodada", [int]$Tentativas = 4)
+# -Extra       : rodada fora de hora, já (id yyyy-MM-dd_HHhMMextra), sem esperar o próximo horário.
+param([ValidateSet("rodada", "diario", "vigia")][string]$Modo = "rodada", [int]$Tentativas = 4, [switch]$Extra)
 
 $raiz = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
 Set-Location $raiz
@@ -34,6 +35,7 @@ $dia = $agora.Date
 if ($null -eq $h) { $h = 20; $dia = $dia.AddDays(-1) }
 $rodada = $dia.ToString("yyyy-MM-dd") + "_" + ("{0:D2}h" -f $h)
 $fechamento = ($h -eq 20)
+if ($Extra) { $rodada = $agora.ToString("yyyy-MM-dd_HH") + "h" + $agora.ToString("mm") + "extra"; $fechamento = $false }
 
 $feitas = Join-Path $dados "rodadas_feitas.txt"
 if ((Test-Path $feitas) -and ((Get-Content $feitas) -contains $rodada)) { exit 0 }

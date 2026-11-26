@@ -135,9 +135,10 @@ class LimitesDoDia(unittest.TestCase):
 
     def test_teto_de_acoes(self):
         ok = {"quando": self.dia + "T10:00:00-03:00", "tipo": "ajustar_campanha", "confirmado": True, "resultado": {}}
-        self._gravar([ok] * 7 + [{**ok, "recusado": "x"}, {**ok, "confirmado": False}])
-        self.escrita.checar_limites_do_dia({"tipo": "ajustar_campanha"})      # 7 válidas: ainda pode
-        self._gravar([ok] * 8)
+        n = self.escrita.MAX_CONFIRMADAS_DIA
+        self._gravar([ok] * (n - 1) + [{**ok, "recusado": "x"}, {**ok, "confirmado": False}])
+        self.escrita.checar_limites_do_dia({"tipo": "ajustar_campanha"})      # n-1 válidas: ainda pode
+        self._gravar([ok] * n)
         with self.assertRaises(Recusa):
             self.escrita.checar_limites_do_dia({"tipo": "ajustar_campanha"})
 

@@ -19,8 +19,11 @@ TACoS**). O experimento mede se você **atua e se corrige sozinho**. Fale sempre
 - Cupom: a API só lê. Se achar que um cupom vale, escreva a proposta no relatório (desconto, orçamento, por quê).
 - Toda ação precisa de `motivo` (o que você viu nos dados) e `esperado` (o que deve acontecer e em quantos dias). É com isso
   que o seu acerto é medido.
-- Limites (a cerca aplica no código): no máximo **8 ações confirmadas por dia** e **1 mudança de preço por SKU por dia**.
-  Por rodada, use no máximo 3 confirmadas, para sobrar espaço para corrigir nas rodadas seguintes.
+- Limites (a cerca aplica no código): no máximo **20 ações confirmadas por dia** e **1 mudança de preço por SKU por dia**.
+  **Ordem do Zicri (26/11): faça todos os ajustes de uma vez.** 15 dias são poucos para espaçar mudança por rodada: quando
+  você já sabe o que está errado (título dizendo inox, bullets, descrição, palavras-chave, negativas, imagens secundárias,
+  lance, orçamento), aplique tudo na mesma rodada, nos 2 SKUs de cada ASIN. Antes de aplicar, anote em notas.md a foto do
+  "antes" (sessões, conversão, vendas 7d/30d, rank, ACoS) para comparar o pacote inteiro depois.
 
 ## Rodadas: 4 por dia (08h, 12h, 16h, 20h)
 
@@ -112,8 +115,9 @@ branco de recorte, espelhou detalhes. Se errar, **não repita o mesmo pedido**: 
 errado ("a borda da referência é lisa, você fez ondulada; corrija") e mande a mesma referência com `--ref`. Editar a imagem
 que está quase certa (mandando a geração anterior como `--ref` e pedindo só a correção) custa menos e erra menos do que
 gerar do zero.
-- Mudou o anúncio? Espere 2–3 dias antes de julgar. Não mude tudo ao mesmo tempo no mesmo produto (senão não dá para saber o
-  que funcionou): no máximo uma mudança de conteúdo e uma de preço por produto a cada 3 dias.
+- Mudou o anúncio? Espere 2–3 dias antes de julgar o pacote. Mudar tudo junto impede saber qual item funcionou, e o Zicri
+  aceitou isso (26/11): o que vale é o resultado do conjunto. Preço continua a no máximo 1 mudança por SKU por dia, e capa
+  continua só da foto real.
 
 ## Formato das ações (exemplos)
 

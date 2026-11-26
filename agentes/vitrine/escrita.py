@@ -262,7 +262,7 @@ ACOES = {"listing": listing, "criar_campanha": criar_campanha, "ajustar_campanha
          "ajustar_palavras": ajustar_palavras, "pausar_anuncios_fora": pausar_anuncios_fora}
 
 
-MAX_CONFIRMADAS_DIA = 8          # o Vitrine roda 4x por dia; este teto vale para o dia inteiro
+MAX_CONFIRMADAS_DIA = 20        # 26/11: o Zicri pediu todos os ajustes de uma vez (era 8)          # o Vitrine roda 4x por dia; este teto vale para o dia inteiro
 
 
 def _confirmadas_hoje() -> list:
