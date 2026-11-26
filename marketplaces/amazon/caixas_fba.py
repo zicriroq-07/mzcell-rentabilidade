@@ -126,7 +126,8 @@ def atualizar_base(conta: str, progresso=print) -> dict:
     for i in api.estoque_fba(conta) or []:
         sku = i.get("sellerSku") or i.get("sku")
         if sku and i.get("asin"):
-            skus[sku] = i["asin"]
+            for s in str(sku).split(" + "):        # o inventário consolida os SKUs do mesmo ASIN em "A + B"
+                skus[s.strip()] = i["asin"]
     for sku, asin in skus.items():
         st, r = api.get(conta, f"/catalog/2022-04-01/items/{asin}", marketplaceIds=api.MARKETPLACE_BR, includedData="dimensions")
         p = (((r or {}).get("dimensions") or [{}])[0]).get("package") or {}
