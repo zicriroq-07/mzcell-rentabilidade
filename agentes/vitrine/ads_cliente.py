@@ -99,14 +99,31 @@ def listar(conta, tipo, plural, filtro=None):
             return out
 
 
+def _id_duplicado(e):
+    """Id do relatório já pendente numa recusa 425 'duplicate of : <uuid>'; None se não for esse caso."""
+    import re
+    if getattr(e, "status", None) != 425:
+        return None
+    m = re.search(r"duplicate of\s*:?\s*([0-9a-fA-F-]{36})", str(e))
+    return m.group(1) if m else None
+
+
 def relatorio(conta, nome, tipo, de, ate, colunas, agrupar, diario=True, espera_max=2700):
     # 45 min: em nov/2026 o spAdvertisedProduct passou de 15 min 3 vezes em 2 dias (pico de Black Friday)
     """Reporting v3 (assíncrono): cria, espera e devolve as linhas."""
     cfg = {"adProduct": "SPONSORED_PRODUCTS", "groupBy": agrupar, "columns": colunas, "reportTypeId": tipo,
            "format": "GZIP_JSON", "timeUnit": "DAILY" if diario else "SUMMARY"}
-    j = chamar(conta, "POST", "/reporting/reports", {"name": nome, "startDate": de, "endDate": ate, "configuration": cfg},
-               "application/vnd.createasyncreportrequest.v3+json")
-    rid, t0, pausa = j["reportId"], time.time(), 5
+    try:
+        j = chamar(conta, "POST", "/reporting/reports", {"name": nome, "startDate": de, "endDate": ate, "configuration": cfg},
+                   "application/vnd.createasyncreportrequest.v3+json")
+        rid = j["reportId"]
+    except ErroAds as e:
+        # 425 = já existe um relatório igual sendo gerado (ex.: de uma coleta anterior que desistiu de esperar):
+        # a Amazon devolve o id dele ("duplicate of : <id>") e o certo é esperar esse, não falhar
+        rid = _id_duplicado(e)
+        if not rid:
+            raise
+    t0, pausa = time.time(), 5
     while time.time() - t0 < espera_max:
         s = chamar(conta, "GET", f"/reporting/reports/{rid}")
         if s.get("status") == "COMPLETED":

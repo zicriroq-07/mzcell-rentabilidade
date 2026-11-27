@@ -155,6 +155,16 @@ class LimitesDoDia(unittest.TestCase):
         self.escrita.checar_limites_do_dia({"tipo": "listing", "sku": "FRT-ARM-FBA",
                                             "patches": [{"op": "replace", "path": "/attributes/item_name"}]})
 
+class RelatorioDuplicado(unittest.TestCase):
+    def test_425_devolve_id_do_pendente(self):
+        from agentes.vitrine import ads_cliente as A
+        e = A.ErroAds(425, 'POST /reporting/reports: HTTP 425 {"code":"425","detail":"The Request is a duplicate of : 89bd9973-45dd-452f-b5d7-ba1dfd632c85"}')
+        self.assertEqual(A._id_duplicado(e), "89bd9973-45dd-452f-b5d7-ba1dfd632c85")
+
+    def test_outro_erro_nao_vira_duplicado(self):
+        from agentes.vitrine import ads_cliente as A
+        self.assertIsNone(A._id_duplicado(A.ErroAds(400, "bad request")))
+
 
 if __name__ == "__main__":
     unittest.main()
