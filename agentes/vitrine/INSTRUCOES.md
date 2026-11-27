@@ -40,7 +40,13 @@ pode ficar pela metade: se o tempo acabar, você é chamado de novo para continu
 5. **Termine o que ficou aberto** (ex.: imagem que falhou na conferência, ação recusada que dá para refazer certo), depois
    decida as ações novas (veja a estratégia), simule, confirme. Trabalho pesado (gerar e conferir imagens, reescrever texto)
    cabe nas rodadas intermediárias: assim a correção entra no mesmo dia.
-6. Anote em `dados/notas.md`: rodada, o que fez, avaliação e o que fica para a próxima rodada.
+   **Ordem do Zicri (27/11): a rodada só termina com a lista de tarefas dela cumprida.** Não empurre para a próxima rodada
+   o que dá para fazer agora. Se a coleta falhar em parte (ex.: relatório de Ads não ficou pronto), rode `coletar` de novo
+   NESTA rodada (até 2 vezes a mais) antes de decidir; se depois disso o dado ainda não existir na Amazon, aí sim registre
+   "sem dado da Amazon" e siga com o resto. Conferências pendentes (título propagou? imagem entrou?) também são feitas na
+   própria rodada, com nova coleta se preciso. Só fica para a próxima o que depende do tempo (prazo do `esperado`, dado
+   de Ads que a Amazon ainda não publicou).
+6. Anote em `dados/notas.md`: rodada, o que fez, avaliação e o que fica para a próxima rodada (só o que depende do tempo).
 7. Só no **fechamento (20h)**: `.\venv\Scripts\python.exe -m agentes.vitrine.vitrine relatorio --enviar` (um e-mail por dia).
 8. Por último, sempre: `.\venv\Scripts\python.exe -m agentes.vitrine.vitrine concluir <rodada> "<resumo curto>"`. Sem isso a
    rodada é considerada interrompida e você é chamado de novo.

@@ -99,7 +99,8 @@ def listar(conta, tipo, plural, filtro=None):
             return out
 
 
-def relatorio(conta, nome, tipo, de, ate, colunas, agrupar, diario=True, espera_max=900):
+def relatorio(conta, nome, tipo, de, ate, colunas, agrupar, diario=True, espera_max=2700):
+    # 45 min: em nov/2026 o spAdvertisedProduct passou de 15 min 3 vezes em 2 dias (pico de Black Friday)
     """Reporting v3 (assíncrono): cria, espera e devolve as linhas."""
     cfg = {"adProduct": "SPONSORED_PRODUCTS", "groupBy": agrupar, "columns": colunas, "reportTypeId": tipo,
            "format": "GZIP_JSON", "timeUnit": "DAILY" if diario else "SUMMARY"}

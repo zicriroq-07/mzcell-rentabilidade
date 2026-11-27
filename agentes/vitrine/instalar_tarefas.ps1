@@ -11,7 +11,7 @@ foreach ($n in "MZ Vitrine - diario", "MZ Vitrine - rodada", "MZ Vitrine - vigia
 if ($Remover) { "Tarefas do Vitrine removidas."; exit 0 }
 
 $cfg = New-ScheduledTaskSettingsSet -StartWhenAvailable -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries `
-        -ExecutionTimeLimit (New-TimeSpan -Hours 3) -MultipleInstances IgnoreNew
+        -ExecutionTimeLimit (New-TimeSpan -Hours 3) -MultipleInstances IgnoreNew -WakeToRun   # acorda o PC no horário
 $arg = "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$script`""
 
 $rodada = New-ScheduledTaskAction -Execute "conhost.exe" -Argument "--headless powershell.exe $arg -Modo rodada"   # --headless: sem janela (fechar a janela matava a rodada)
