@@ -116,6 +116,13 @@ try:
 except ImportError as e:
     print(f"[startup] Módulo Amazon indisponível: {e}")
 
+# Painel Rentabilidade + Ads da Amazon (somente leitura). De outro PC exige o login do app (acesso_rede).
+try:
+    from marketplaces.amazon.ads_router import router as amazon_ads_router
+    app.include_router(amazon_ads_router)
+except ImportError as e:
+    print(f"[startup] Painel Amazon Ads indisponível: {e}")
+
 try:
     from marketplaces.shopee.router import router as shopee_router
     app.include_router(shopee_router)

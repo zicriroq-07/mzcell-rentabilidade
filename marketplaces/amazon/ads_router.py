@@ -7,7 +7,7 @@ GET  /amazonads/dados       ASINs, campanhas, totais e alertas do período
 GET  /amazonads/asin        detalhe de um ASIN (campanhas, série diária, alvos e termos de busca)
 GET  /amazonads/estado      andamento da coleta (Ads e Finances)
 POST /amazonads/atualizar   busca Ads (62 dias) e Finances em segundo plano
-Só a conta amazon02 por enquanto. Nada aqui cria, altera ou pausa campanha.
+Contas amazon01 e amazon02 (?conta=). Nada aqui cria, altera ou pausa campanha.
 """
 
 import os
@@ -18,13 +18,13 @@ from fastapi.responses import HTMLResponse
 from marketplaces.amazon import ads_api, ads_painel, api
 
 router = APIRouter(prefix="/amazonads", tags=["Amazon Ads"])
-CONTAS = ("amazon02",)
+CONTAS = ("amazon01", "amazon02")   # amazon01 liberada em 27/11/2026
 PAGINA = os.path.join(os.path.dirname(os.path.abspath(__file__)), "pagina_ads.html")
 
 
 def _conta(conta):
     if conta not in CONTAS:
-        raise HTTPException(status_code=400, detail="Por enquanto só a conta amazon02 tem Ads liberado.")
+        raise HTTPException(status_code=400, detail="Conta sem Ads liberado (use amazon01 ou amazon02).")
     return conta
 
 

@@ -109,8 +109,9 @@ select.busca{color-scheme:dark}
 </head>
 <body>
 <div class="topbar">
-  <div class="brand"><div class="logo">MZ</div><b>Amazon 2 · Rentabilidade + Ads</b><span class="tag">MZ.cell · BR</span></div>
+  <div class="brand"><div class="logo">MZ</div><b id="tituloConta">Amazon 2 · Rentabilidade + Ads</b><span class="tag" id="tagConta">MZ.cell · BR</span></div>
   <div class="actions">
+    <div class="pre"><button class="preset conta" data-c="amazon01">Amazon 1</button><button class="preset conta" data-c="amazon02">Amazon 2</button></div>
     <div class="pre"><button class="preset" data-d="7">7D</button><button class="preset" data-d="15">15D</button><button class="preset on" data-d="30">30D</button><button class="preset" data-d="60">60D</button></div>
     <div class="dts"><input type="date" id="de"><span class="mut">→</span><input type="date" id="ate"><button class="btn" id="btnPer">Aplicar</button></div>
     <button class="btn btn-gold" id="btnAtu">↻ Atualizar dados</button>
@@ -127,6 +128,12 @@ select.busca{color-scheme:dark}
 
 <script>
 const API = location.origin + '/amazonads';
+const CONTA = new URLSearchParams(location.search).get('conta') === 'amazon01' ? 'amazon01' : 'amazon02';
+const NOMES = {amazon01: ['Amazon 1', 'Techseller · BR'], amazon02: ['Amazon 2', 'MZ.cell · BR']};
+document.title = NOMES[CONTA][0] + ' · Rentabilidade + Ads';
+document.getElementById('tituloConta').textContent = document.title;
+document.getElementById('tagConta').textContent = NOMES[CONTA][1];
+document.querySelectorAll('.conta').forEach(b => { b.classList.toggle('on', b.dataset.c === CONTA); b.onclick = () => { location.search = '?conta=' + b.dataset.c; }; });
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const brl = v => v == null ? '—' : v.toLocaleString('pt-BR', {style:'currency', currency:'BRL'});
@@ -141,10 +148,10 @@ function get(o, p){ return p.split('.').reduce((a, k) => a == null ? null : a[k]
 function ordenar(lista, [campo, dir]){ return [...lista].sort((a, b) => { const x = get(a, campo), y = get(b, campo); if (x == null && y == null) return 0; if (x == null) return 1; if (y == null) return -1; return (typeof x === 'string' ? x.localeCompare(y) : x - y) * dir; }); }
 function variacao(atual, ant, inverso){ if (ant == null || ant === 0 || atual == null) return ''; const v = (atual - ant) / Math.abs(ant); const bom = inverso ? v < 0 : v > 0; return `<span class="${Math.abs(v) < 0.005 ? 'mut' : bom ? 'up' : 'down'}">${v > 0 ? '▲' : '▼'} ${Math.abs(v * 100).toFixed(1).replace('.', ',')}%</span>`; }
 
-async function api(p, opts){ const r = await fetch(API + p, opts); if (!r.ok) { let m = r.statusText; try { m = (await r.json()).detail || m; } catch(e){} throw new Error(m); } return r.json(); }
+async function api(p, opts){ const r = await fetch(API + p + (p.includes('?') ? '&' : '?') + 'conta=' + CONTA, opts); if (!r.ok) { let m = r.statusText; try { m = (await r.json()).detail || m; } catch(e){} throw new Error(m); } return r.json(); }
 
 function datas(){ return [$('#de').value, $('#ate').value]; }
-function setPreset(d){ S.dias = d; document.querySelectorAll('.preset').forEach(b => b.classList.toggle('on', +b.dataset.d === d)); const ate = new Date(Date.now() - 86400000), de = new Date(ate.getTime() - (d - 1) * 86400000); const f = x => x.toISOString().slice(0, 10); $('#de').value = f(de); $('#ate').value = f(ate); }
+function setPreset(d){ S.dias = d; document.querySelectorAll('.preset[data-d]').forEach(b => b.classList.toggle('on', +b.dataset.d === d)); const ate = new Date(Date.now() - 86400000), de = new Date(ate.getTime() - (d - 1) * 86400000); const f = x => x.toISOString().slice(0, 10); $('#de').value = f(de); $('#ate').value = f(ate); }
 
 async function carregar(){
   const [de, ate] = datas();
@@ -326,8 +333,8 @@ async function estadoPoll(){
   else if (S.pollando){ S.pollando = false; carregar(); }
 }
 $('#btnAtu').onclick = async () => { try { await api('/atualizar', {method:'POST'}); } catch(e){ alert(e.message); return; } estadoPoll(); };
-$('#btnPer').onclick = () => { document.querySelectorAll('.preset').forEach(b => b.classList.remove('on')); carregar(); };
-document.querySelectorAll('.preset').forEach(b => b.onclick = () => { setPreset(+b.dataset.d); carregar(); });
+$('#btnPer').onclick = () => { document.querySelectorAll('.preset[data-d]').forEach(b => b.classList.remove('on')); carregar(); };
+document.querySelectorAll('.preset[data-d]').forEach(b => b.onclick = () => { setPreset(+b.dataset.d); carregar(); });
 setPreset(30); carregar(); estadoPoll();
 </script>
 </body>
